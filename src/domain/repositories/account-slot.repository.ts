@@ -18,6 +18,7 @@ export interface IAccountSlotWithAccount extends IAccountSlot {
     profilePictureUrl: string | null;
     status: string;
     tokenExpiresAt: Date;
+    integrationSource: "legacy_project_app" | "user_meta_app";
   } | null;
 }
 

@@ -14,14 +14,24 @@ export class HandleInstagramMetaComplianceUseCase {
     private readonly frontendOrigin: string,
   ) {}
 
-  async deauthorizeByInstagramUserId(instagramUserId: string): Promise<void> {
-    await this.disconnectAllByInstagramUserId(instagramUserId);
+  async deauthorizeByInstagramUserId(
+    instagramUserId: string,
+    metaAppConfigId: string,
+  ): Promise<void> {
+    await this.disconnectAllByInstagramUserId(
+      instagramUserId,
+      metaAppConfigId,
+    );
   }
 
   async dataDeletionByInstagramUserId(
     instagramUserId: string,
+    metaAppConfigId: string,
   ): Promise<IInstagramDataDeletionResult> {
-    await this.disconnectAllByInstagramUserId(instagramUserId);
+    await this.disconnectAllByInstagramUserId(
+      instagramUserId,
+      metaAppConfigId,
+    );
 
     const confirmationCode = randomBytes(12).toString("hex");
     const statusUrl = new URL("/data-deletion", this.frontendOrigin);
@@ -35,10 +45,12 @@ export class HandleInstagramMetaComplianceUseCase {
 
   private async disconnectAllByInstagramUserId(
     instagramUserId: string,
+    metaAppConfigId: string,
   ): Promise<void> {
     const accounts =
-      await this.instagramConnectedAccountRepository.findAllByInstagramUserId(
+      await this.instagramConnectedAccountRepository.findAllByInstagramUserIdAndMetaAppConfigId(
         instagramUserId,
+        metaAppConfigId,
       );
 
     for (const account of accounts) {

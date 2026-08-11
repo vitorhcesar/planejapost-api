@@ -1,9 +1,10 @@
 import type {
+  IInstagramOAuthCredentials,
   IInstagramOAuthService,
+  IInstagramOAuthServiceFactory,
   IInstagramOAuthTokens,
 } from "@/domain/instagram/instagram.service";
 import { AppError } from "@/http/services/app/errors/app.error";
-import { EnvService } from "@/http/services/env/env.service";
 
 interface IInstagramShortLivedTokenPayload {
   access_token: string;
@@ -41,14 +42,14 @@ interface IInstagramGraphErrorResponse {
 }
 
 export class InstagramOAuthClient implements IInstagramOAuthService {
-  private readonly env = EnvService.getInstance();
+  constructor(private readonly credentials: IInstagramOAuthCredentials) {}
 
   buildAuthorizationUrl(state: string): string {
     const params = new URLSearchParams({
-      client_id: this.env.instagramAppId,
-      redirect_uri: this.env.instagramRedirectUri,
+      client_id: this.credentials.appId,
+      redirect_uri: this.credentials.redirectUri,
       response_type: "code",
-      scope: this.env.instagramOAuthScopes,
+      scope: this.credentials.scopes.join(","),
       state,
     });
 
@@ -68,7 +69,7 @@ export class InstagramOAuthClient implements IInstagramOAuthService {
       expiresIn: longLivedToken.expires_in,
       instagramUserId: String(shortLivedToken.user_id),
       scopes:
-        shortLivedToken.permissions ?? this.env.instagramOAuthScopes.split(","),
+        shortLivedToken.permissions ?? this.credentials.scopes,
     };
   }
 
@@ -99,7 +100,7 @@ export class InstagramOAuthClient implements IInstagramOAuthService {
       accessToken: data.access_token,
       expiresIn: data.expires_in,
       instagramUserId: "",
-      scopes: this.env.instagramOAuthScopes.split(","),
+      scopes: this.credentials.scopes,
     };
   }
 
@@ -107,10 +108,10 @@ export class InstagramOAuthClient implements IInstagramOAuthService {
     code: string,
   ): Promise<IInstagramShortLivedTokenResponse> {
     const formData = new FormData();
-    formData.append("client_id", this.env.instagramAppId);
-    formData.append("client_secret", this.env.instagramAppSecret);
+    formData.append("client_id", this.credentials.appId);
+    formData.append("client_secret", this.credentials.appSecret);
     formData.append("grant_type", "authorization_code");
-    formData.append("redirect_uri", this.env.instagramRedirectUri);
+    formData.append("redirect_uri", this.credentials.redirectUri);
     formData.append("code", code);
 
     const response = await fetch(
@@ -184,7 +185,7 @@ export class InstagramOAuthClient implements IInstagramOAuthService {
   ): Promise<IInstagramLongLivedTokenResponse> {
     const params = new URLSearchParams({
       grant_type: "ig_exchange_token",
-      client_secret: this.env.instagramAppSecret,
+      client_secret: this.credentials.appSecret,
       access_token: shortLivedAccessToken,
     });
 
@@ -219,5 +220,13 @@ export class InstagramOAuthClient implements IInstagramOAuthService {
       502,
       code,
     );
+  }
+}
+
+export class InstagramOAuthClientFactory
+  implements IInstagramOAuthServiceFactory
+{
+  create(credentials: IInstagramOAuthCredentials): IInstagramOAuthService {
+    return new InstagramOAuthClient(credentials);
   }
 }

@@ -13,6 +13,7 @@ export interface IAccountSlotAccountDto {
   isTokenExpired: boolean;
   hasConnectionIssue: boolean;
   issueType: InstagramAccountIssueType | null;
+  integrationSource: "legacy_project_app" | "user_meta_app";
 }
 
 export interface IAccountSlotDto {

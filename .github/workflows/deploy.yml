@@ -38,12 +38,7 @@ jobs:
       #   BETTER_AUTH_URL         = https://api.solixpost.com.br
       #   PUBLIC_API_URL          = https://api.solixpost.com.br
       #   INSTAGRAM_REDIRECT_URI  = https://api.solixpost.com.br/api/v1/instagram/connect/callback
-      # Meta App Dashboard (Settings > Basic / Business login settings):
-      #   Privacy Policy URL:          https://app.solixpost.com.br/privacy
-      #   Terms of Service URL:        https://app.solixpost.com.br/terms
-      #   User Data Deletion (instr.): https://app.solixpost.com.br/data-deletion
-      #   User Data Deletion (API):    https://api.solixpost.com.br/api/v1/instagram/data-deletion
-      #   Deauthorize callback URL:    https://api.solixpost.com.br/api/v1/instagram/deauthorize
+      # Cada usuário configura sua Meta App e recebe URLs exclusivas de compliance.
       #   SMTP_FROM               = noreply@solixpost.com.br
       #
       # Conexões internas Docker (hostnames dos containers):
@@ -59,10 +54,9 @@ jobs:
           BETTER_AUTH_SECRET=${{ secrets.BETTER_AUTH_SECRET }}
           BETTER_AUTH_URL=${{ secrets.BETTER_AUTH_URL }}
           CORS_ORIGIN=${{ secrets.CORS_ORIGIN }}
-          INSTAGRAM_APP_ID=${{ secrets.INSTAGRAM_APP_ID }}
-          INSTAGRAM_APP_SECRET=${{ secrets.INSTAGRAM_APP_SECRET }}
           INSTAGRAM_REDIRECT_URI=${{ secrets.INSTAGRAM_REDIRECT_URI }}
           INSTAGRAM_OAUTH_SCOPES=${{ secrets.INSTAGRAM_OAUTH_SCOPES }}
+          META_APP_CONFIG_ENCRYPTION_KEY=${{ secrets.META_APP_CONFIG_ENCRYPTION_KEY }}
           PUBLIC_API_URL=${{ secrets.PUBLIC_API_URL }}
           MINIO_ENDPOINT=${{ secrets.MINIO_ENDPOINT }}
           MINIO_PORT=${{ secrets.MINIO_PORT }}

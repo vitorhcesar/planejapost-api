@@ -9,6 +9,7 @@ export interface IInstagramConnectedAccountDto {
   tokenExpiresAt: string;
   createdAt: string;
   updatedAt: string;
+  integrationSource: "legacy_project_app" | "user_meta_app";
 }
 
 export interface IInstagramConnectSessionDto {

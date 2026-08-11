@@ -11,6 +11,8 @@ export interface IInstagramConnectedAccountProps {
   tokenExpiresAt: Date;
   scopes: string[];
   status: InstagramConnectedAccountStatusEnum;
+  integrationSource: "legacy_project_app" | "user_meta_app";
+  metaAppConfigId: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -24,6 +26,7 @@ export interface IInstagramConnectedAccountCreateProps {
   accessToken: string;
   tokenExpiresAt: Date;
   scopes: string[];
+  metaAppConfigId: string;
 }
 
 export class InstagramConnectedAccount {
@@ -49,6 +52,8 @@ export class InstagramConnectedAccount {
       tokenExpiresAt: props.tokenExpiresAt,
       scopes: props.scopes,
       status: InstagramConnectedAccountStatusEnum.CONNECTED,
+      integrationSource: "user_meta_app",
+      metaAppConfigId: props.metaAppConfigId,
       createdAt: now,
       updatedAt: now,
     });
@@ -100,6 +105,14 @@ export class InstagramConnectedAccount {
     return this.props.status;
   }
 
+  get integrationSource(): "legacy_project_app" | "user_meta_app" {
+    return this.props.integrationSource;
+  }
+
+  get metaAppConfigId(): string | null {
+    return this.props.metaAppConfigId;
+  }
+
   get createdAt(): Date {
     return this.props.createdAt;
   }
@@ -135,6 +148,12 @@ export class InstagramConnectedAccount {
     this.props.displayName = props.displayName ?? null;
     this.props.profilePictureUrl = props.profilePictureUrl ?? null;
     this.props.status = InstagramConnectedAccountStatusEnum.CONNECTED;
+    this.props.updatedAt = new Date();
+  }
+
+  bindToMetaAppConfigAfterAuthorization(metaAppConfigId: string): void {
+    this.props.metaAppConfigId = metaAppConfigId;
+    this.props.integrationSource = "user_meta_app";
     this.props.updatedAt = new Date();
   }
 

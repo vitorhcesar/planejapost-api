@@ -17,5 +17,6 @@ export function mapInstagramConnectedAccountToDto(
     tokenExpiresAt: data.tokenExpiresAt.toISOString(),
     createdAt: data.createdAt.toISOString(),
     updatedAt: data.updatedAt.toISOString(),
+    integrationSource: data.integrationSource,
   };
 }

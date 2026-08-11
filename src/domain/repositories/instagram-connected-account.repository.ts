@@ -14,6 +14,10 @@ export interface IInstagramConnectedAccountRepository {
   findAllByInstagramUserId(
     instagramUserId: string,
   ): Promise<InstagramConnectedAccount[]>;
+  findAllByInstagramUserIdAndMetaAppConfigId(
+    instagramUserId: string,
+    metaAppConfigId: string,
+  ): Promise<InstagramConnectedAccount[]>;
   save(account: InstagramConnectedAccount): Promise<InstagramConnectedAccount>;
   countAll(): Promise<number>;
 }
@@ -23,10 +27,15 @@ export interface IInstagramOAuthStateRepository {
     userId: string,
     state: string,
     expiresAt: Date,
+    metaAppConfigId: string,
     accountSlotId?: string,
   ): Promise<void>;
   findValidState(
     state: string,
-  ): Promise<{ userId: string; accountSlotId: string | null } | null>;
+  ): Promise<{
+    userId: string;
+    accountSlotId: string | null;
+    metaAppConfigId: string;
+  } | null>;
   deleteByState(state: string): Promise<void>;
 }

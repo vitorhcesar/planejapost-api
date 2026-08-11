@@ -16,6 +16,7 @@ import { EmailVerificationRoutes } from "@/http/routes/api/v1/email-verification
 import { buildPublicObjectRoutes } from "@/http/routes/api/v1/public-object.routes";
 import { registerGlobalApiErrorHandler } from "@/http/utils/register-global-api-error-handler";
 import { PublicationWorker } from "@/infra/queue/publication-queue";
+import { MetaAppConfigRoutes } from "@/http/routes/api/v1/meta-app-config.routes";
 
 export class AppService {
   private readonly env = EnvService.getInstance();
@@ -59,6 +60,7 @@ export class AppService {
         .use(new UserRoutes(this.serverClient).build())
         .use(new EmailVerificationRoutes(this.serverClient).build())
         .use(new InstagramRoutes(this.serverClient).build())
+        .use(new MetaAppConfigRoutes(this.serverClient).build())
         .use(new PublicationRoutes(this.serverClient).build())
         .use(new WalletRoutes(this.serverClient).build())
         .use(new AccountSlotRoutes(this.serverClient).build())

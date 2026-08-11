@@ -3,11 +3,12 @@ import { EnvService } from "@/http/services/env/env.service";
 import { PrismaPublicationRepository } from "@/infra/database/prisma/repositories/prisma-publication.repository";
 import { PrismaInstagramConnectedAccountRepository } from "@/infra/database/prisma/repositories/prisma-instagram-connected-account.repository";
 import { InstagramContentPublishingService } from "@/infra/instagram/instagram-content-publishing.service";
-import { InstagramOAuthClient } from "@/infra/instagram/instagram-oauth.client";
+import { InstagramOAuthClientFactory } from "@/infra/instagram/instagram-oauth.client";
 import { MinioTemporaryPublicationMediaStorage } from "@/infra/object-storage/minio-temporary-publication-media.storage";
 import { PublicationTypeEnum } from "@/domain/enums/instagram.enum";
 import { isInstagramAccountAuthFailure } from "@/domain/instagram/instagram-account-health.util";
 import { AppError } from "@/http/services/app/errors/app.error";
+import { PrismaMetaAppConfigRepository } from "@/infra/database/prisma/repositories/prisma-meta-app-config.repository";
 
 export const PUBLICATION_QUEUE_NAME = "publication";
 
@@ -75,7 +76,8 @@ export class PublicationWorker {
     const publicationRepository = new PrismaPublicationRepository();
     const accountRepository = new PrismaInstagramConnectedAccountRepository();
     const publishingService = new InstagramContentPublishingService();
-    const oauthService = new InstagramOAuthClient();
+    const oauthServiceFactory = new InstagramOAuthClientFactory();
+    const metaAppConfigRepository = new PrismaMetaAppConfigRepository();
     const tempStorage = new MinioTemporaryPublicationMediaStorage();
     const env = EnvService.getInstance();
 
@@ -105,6 +107,32 @@ export class PublicationWorker {
 
         if (account.isTokenExpired()) {
           try {
+            if (!account.metaAppConfigId) {
+              throw new AppError(
+                "Conta legada precisa ser reconectada com uma Meta App própria",
+                409,
+                "legacy_instagram_account_reconnect_required",
+              );
+            }
+
+            const metaAppConfig = await metaAppConfigRepository.findById(
+              account.metaAppConfigId,
+            );
+
+            if (!metaAppConfig) {
+              throw new AppError(
+                "Configuração Meta vinculada à conta não está disponível",
+                409,
+                "meta_app_config_not_found",
+              );
+            }
+
+            const oauthService = oauthServiceFactory.create({
+              appId: metaAppConfig.appId,
+              appSecret: metaAppConfig.appSecret,
+              redirectUri: metaAppConfig.redirectUri,
+              scopes: metaAppConfig.requestedScopes,
+            });
             const refreshed = await oauthService.refreshLongLivedToken(accessToken);
             accessToken = refreshed.accessToken;
             account.updateOAuthData({

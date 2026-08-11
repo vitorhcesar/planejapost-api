@@ -9,6 +9,7 @@ export class PrismaInstagramOAuthStateRepository
     userId: string,
     state: string,
     expiresAt: Date,
+    metaAppConfigId: string,
     accountSlotId?: string,
   ): Promise<void> {
     await this.getPrismaClient().instagramOAuthState.create({
@@ -16,6 +17,7 @@ export class PrismaInstagramOAuthStateRepository
         userId,
         state,
         expiresAt,
+        metaAppConfigId,
         accountSlotId: accountSlotId ?? null,
       },
     });
@@ -23,18 +25,34 @@ export class PrismaInstagramOAuthStateRepository
 
   async findValidState(
     state: string,
-  ): Promise<{ userId: string; accountSlotId: string | null } | null> {
-    const row = await this.getPrismaClient().instagramOAuthState.findFirst({
-      where: {
-        state,
-        expiresAt: {
-          gt: new Date(),
-        },
-      },
-    });
+  ): Promise<{
+    userId: string;
+    accountSlotId: string | null;
+    metaAppConfigId: string;
+  } | null> {
+    const rows = await this.getPrismaClient().$queryRaw<
+      Array<{
+        userId: string;
+        accountSlotId: string | null;
+        metaAppConfigId: string;
+      }>
+    >`
+      DELETE FROM "instagram_oauth_state"
+      WHERE "state" = ${state}
+        AND "expiresAt" > NOW()
+      RETURNING
+        "userId",
+        "accountSlotId",
+        "metaAppConfigId"
+    `;
+    const row = rows[0] ?? null;
 
     return row
-      ? { userId: row.userId, accountSlotId: row.accountSlotId }
+      ? {
+          userId: row.userId,
+          accountSlotId: row.accountSlotId,
+          metaAppConfigId: row.metaAppConfigId,
+        }
       : null;
   }
 

@@ -72,6 +72,17 @@ export class PrismaInstagramConnectedAccountRepository
     return rows.map((row) => InstagramConnectedAccountMapper.toDomain(row));
   }
 
+  async findAllByInstagramUserIdAndMetaAppConfigId(
+    instagramUserId: string,
+    metaAppConfigId: string,
+  ): Promise<InstagramConnectedAccount[]> {
+    const rows = await this.getPrismaClient().instagramConnectedAccount.findMany({
+      where: { instagramUserId, metaAppConfigId },
+    });
+
+    return rows.map((row) => InstagramConnectedAccountMapper.toDomain(row));
+  }
+
   async save(
     account: InstagramConnectedAccount,
   ): Promise<InstagramConnectedAccount> {

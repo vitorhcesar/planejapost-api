@@ -22,6 +22,11 @@ export class InstagramConnectedAccountMapper {
       tokenExpiresAt: row.tokenExpiresAt,
       scopes: row.scopes.split(",").filter(Boolean),
       status: InstagramConnectedAccountMapper.toDomainStatus(row.status),
+      integrationSource:
+        row.integrationSource === "user_meta_app"
+          ? "user_meta_app"
+          : "legacy_project_app",
+      metaAppConfigId: row.metaAppConfigId,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     });
@@ -42,6 +47,8 @@ export class InstagramConnectedAccountMapper {
       tokenExpiresAt: data.tokenExpiresAt,
       scopes: data.scopes.join(","),
       status: data.status,
+      integrationSource: data.integrationSource,
+      metaAppConfigId: data.metaAppConfigId,
     };
   }
 
@@ -58,6 +65,8 @@ export class InstagramConnectedAccountMapper {
       tokenExpiresAt: data.tokenExpiresAt,
       scopes: data.scopes.join(","),
       status: data.status,
+      integrationSource: data.integrationSource,
+      metaAppConfigId: data.metaAppConfigId,
       updatedAt: data.updatedAt,
     };
   }

@@ -9,14 +9,13 @@ const envSchema = z.object({
   BETTER_AUTH_SECRET: z.string().min(32),
   BETTER_AUTH_URL: z.string().url(),
   CORS_ORIGIN: z.string().min(1),
-  INSTAGRAM_APP_ID: z.string().min(1).optional(),
-  INSTAGRAM_APP_SECRET: z.string().min(1).optional(),
   INSTAGRAM_REDIRECT_URI: z.string().url().optional(),
   INSTAGRAM_OAUTH_SCOPES: z
     .string()
     .min(1)
     .default("instagram_business_basic,instagram_business_content_publish"),
   INSTAGRAM_TOKEN_ENCRYPTION_KEY: z.string().min(32).optional(),
+  META_APP_CONFIG_ENCRYPTION_KEY: z.string().min(32).optional(),
   PUBLIC_API_URL: z.string().url(),
   MINIO_ENDPOINT: z.string().min(1).default("localhost"),
   MINIO_PORT: z.coerce.number().int().positive().default(9000),
@@ -89,22 +88,6 @@ export class EnvService {
     return this.env.CORS_ORIGIN;
   }
 
-  get instagramAppId(): string {
-    if (!this.env.INSTAGRAM_APP_ID) {
-      throw new Error("INSTAGRAM_APP_ID não configurado");
-    }
-
-    return this.env.INSTAGRAM_APP_ID;
-  }
-
-  get instagramAppSecret(): string {
-    if (!this.env.INSTAGRAM_APP_SECRET) {
-      throw new Error("INSTAGRAM_APP_SECRET não configurado");
-    }
-
-    return this.env.INSTAGRAM_APP_SECRET;
-  }
-
   get instagramRedirectUri(): string {
     if (!this.env.INSTAGRAM_REDIRECT_URI) {
       throw new Error("INSTAGRAM_REDIRECT_URI não configurado");
@@ -119,6 +102,14 @@ export class EnvService {
 
   get instagramTokenEncryptionKey(): string {
     return this.env.INSTAGRAM_TOKEN_ENCRYPTION_KEY ?? this.env.BETTER_AUTH_SECRET;
+  }
+
+  get metaAppConfigEncryptionKey(): string {
+    if (!this.env.META_APP_CONFIG_ENCRYPTION_KEY) {
+      throw new Error("META_APP_CONFIG_ENCRYPTION_KEY não configurada");
+    }
+
+    return this.env.META_APP_CONFIG_ENCRYPTION_KEY;
   }
 
   get isDevelopment(): boolean {

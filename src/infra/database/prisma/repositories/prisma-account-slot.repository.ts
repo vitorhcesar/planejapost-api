@@ -50,6 +50,7 @@ export class PrismaAccountSlotRepository
             profilePictureUrl: true,
             status: true,
             tokenExpiresAt: true,
+            integrationSource: true,
           },
         },
       },
@@ -66,6 +67,10 @@ export class PrismaAccountSlotRepository
             profilePictureUrl: row.instagramConnectedAccount.profilePictureUrl,
             status: row.instagramConnectedAccount.status,
             tokenExpiresAt: row.instagramConnectedAccount.tokenExpiresAt,
+            integrationSource:
+              row.instagramConnectedAccount.integrationSource === "user_meta_app"
+                ? "user_meta_app"
+                : "legacy_project_app",
           }
         : null,
     }));

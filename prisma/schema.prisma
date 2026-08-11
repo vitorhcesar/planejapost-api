@@ -9,20 +9,21 @@ datasource db {
 }
 
 model User {
-  id            String    @id
-  name          String
-  email         String
-  emailVerified Boolean   @default(false)
-  image         String?
-  role          String    @default("client")
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  sessions      Session[]
-  accounts      Account[]
+  id                         String                      @id
+  name                       String
+  email                      String
+  emailVerified              Boolean                     @default(false)
+  image                      String?
+  role                       String                      @default("client")
+  createdAt                  DateTime                    @default(now())
+  updatedAt                  DateTime                    @updatedAt
+  sessions                   Session[]
+  accounts                   Account[]
   instagramConnectedAccounts InstagramConnectedAccount[]
-  accountSlots  AccountSlot[]
-  publications  Publication[]
-  wallet        Wallet?
+  metaAppConfigs             MetaAppConfig[]
+  accountSlots               AccountSlot[]
+  publications               Publication[]
+  wallet                     Wallet?
 
   @@unique([email])
   @@map("user")
@@ -77,51 +78,78 @@ model Verification {
 }
 
 model InstagramConnectedAccount {
-  id                String   @id @default(cuid())
-  userId            String
-  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  instagramUserId   String
-  username          String
-  displayName       String?
-  profilePictureUrl String?
-  accessToken       String
-  tokenExpiresAt    DateTime
-  scopes            String
-  status            String   @default("connected")
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id                 String              @id @default(cuid())
+  userId             String
+  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  instagramUserId    String
+  username           String
+  displayName        String?
+  profilePictureUrl  String?
+  accessToken        String
+  tokenExpiresAt     DateTime
+  scopes             String
+  status             String              @default("connected")
+  integrationSource  String              @default("legacy_project_app")
+  metaAppConfigId    String?
+  metaAppConfig      MetaAppConfig?      @relation(fields: [metaAppConfigId], references: [id], onDelete: SetNull)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
   publicationTargets PublicationTarget[]
-  accountSlot       AccountSlot?
+  accountSlot        AccountSlot?
 
   @@unique([userId, instagramUserId])
   @@index([userId])
   @@index([status])
+  @@index([metaAppConfigId])
   @@map("instagram_connected_account")
 }
 
 model InstagramOAuthState {
-  id            String   @id @default(cuid())
-  userId        String
-  state         String   @unique
-  accountSlotId String?
-  expiresAt     DateTime
-  createdAt     DateTime @default(now())
+  id              String        @id @default(cuid())
+  userId          String
+  state           String        @unique
+  accountSlotId   String?
+  metaAppConfigId String
+  metaAppConfig   MetaAppConfig @relation(fields: [metaAppConfigId], references: [id], onDelete: Cascade)
+  expiresAt       DateTime
+  createdAt       DateTime      @default(now())
 
   @@index([userId])
   @@index([expiresAt])
+  @@index([metaAppConfigId])
   @@map("instagram_oauth_state")
 }
 
+model MetaAppConfig {
+  id                String                      @id @default(cuid())
+  publicId          String                      @unique
+  userId            String
+  user              User                        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  label             String
+  appId             String                      @unique
+  appSecret         String
+  redirectUri       String
+  requestedScopes   String
+  isActive          Boolean                     @default(true)
+  createdAt         DateTime                    @default(now())
+  updatedAt         DateTime                    @updatedAt
+  connectedAccounts InstagramConnectedAccount[]
+  oauthStates       InstagramOAuthState[]
+
+  @@index([userId, isActive])
+  @@map("meta_app_config")
+}
+
 model AccountSlot {
-  id                          String   @id @default(cuid())
+  id                          String                     @id @default(cuid())
   userId                      String
-  user                        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  instagramConnectedAccountId String?  @unique
+  user                        User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  instagramConnectedAccountId String?                    @unique
   instagramConnectedAccount   InstagramConnectedAccount? @relation(fields: [instagramConnectedAccountId], references: [id], onDelete: SetNull)
-  status                      String   @default("active")
+  status                      String                     @default("active")
   expiresAt                   DateTime
-  createdAt                   DateTime @default(now())
-  updatedAt                   DateTime @updatedAt
+  createdAt                   DateTime                   @default(now())
+  updatedAt                   DateTime                   @updatedAt
 
   @@index([userId])
   @@index([status])
@@ -130,18 +158,18 @@ model AccountSlot {
 }
 
 model Publication {
-  id               String   @id @default(cuid())
+  id               String              @id @default(cuid())
   userId           String
-  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user             User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   type             String
   destinationScope String
   caption          String?
   mediaUrl         String
   objectKey        String?
-  objectKeys       String[] @default([])
-  status           String   @default("pending")
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  objectKeys       String[]            @default([])
+  status           String              @default("pending")
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
   targets          PublicationTarget[]
 
   @@index([userId])
@@ -150,17 +178,17 @@ model Publication {
 }
 
 model PublicationTarget {
-  id                          String   @id @default(cuid())
+  id                          String                    @id @default(cuid())
   publicationId               String
-  publication                 Publication @relation(fields: [publicationId], references: [id], onDelete: Cascade)
+  publication                 Publication               @relation(fields: [publicationId], references: [id], onDelete: Cascade)
   instagramConnectedAccountId String
   instagramConnectedAccount   InstagramConnectedAccount @relation(fields: [instagramConnectedAccountId], references: [id], onDelete: Cascade)
-  status                      String   @default("pending")
+  status                      String                    @default("pending")
   instagramMediaId            String?
   instagramPermalink          String?
   errorMessage                String?
-  createdAt                   DateTime @default(now())
-  updatedAt                   DateTime @updatedAt
+  createdAt                   DateTime                  @default(now())
+  updatedAt                   DateTime                  @updatedAt
 
   @@index([publicationId])
   @@index([instagramConnectedAccountId])
@@ -181,12 +209,12 @@ model OmegaPayWebhookEvent {
 }
 
 model Wallet {
-  id        String   @id @default(cuid())
-  userId    String   @unique
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  balance   Decimal  @default(0) @db.Decimal(12, 2)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String              @id @default(cuid())
+  userId       String              @unique
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  balance      Decimal             @default(0) @db.Decimal(12, 2)
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
   transactions WalletTransaction[]
   recharges    WalletRecharge[]
 

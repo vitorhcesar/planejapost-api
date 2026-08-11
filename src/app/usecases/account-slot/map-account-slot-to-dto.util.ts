@@ -24,6 +24,7 @@ function mapInstagramAccountToDto(
     isTokenExpired: health.isTokenExpired,
     hasConnectionIssue: health.hasConnectionIssue,
     issueType: health.issueType,
+    integrationSource: account.integrationSource,
   };
 }
 

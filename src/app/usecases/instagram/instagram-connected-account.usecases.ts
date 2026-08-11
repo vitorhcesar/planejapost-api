@@ -7,21 +7,24 @@ import { InstagramConnectedAccount } from "@/domain/entities/instagram-connected
 import { AccountSlotStatusEnum } from "@/domain/enums/account-slot.enum";
 import type {
   IInstagramGraphService,
-  IInstagramOAuthService,
+  IInstagramOAuthServiceFactory,
 } from "@/domain/instagram/instagram.service";
 import type { IAccountSlotRepository } from "@/domain/repositories/account-slot.repository";
 import type {
   IInstagramConnectedAccountRepository,
   IInstagramOAuthStateRepository,
 } from "@/domain/repositories/instagram-connected-account.repository";
+import type { IMetaAppConfigRepository } from "@/domain/repositories/meta-app-config.repository";
 import { AppError } from "@/http/services/app/errors/app.error";
 import { randomBytes } from "node:crypto";
 
 export class CreateInstagramConnectSessionUseCase {
   constructor(
     private readonly oauthStateRepository: IInstagramOAuthStateRepository,
-    private readonly instagramOAuthService: IInstagramOAuthService,
+    private readonly instagramOAuthServiceFactory: IInstagramOAuthServiceFactory,
     private readonly accountSlotRepository: IAccountSlotRepository,
+    private readonly instagramConnectedAccountRepository: IInstagramConnectedAccountRepository,
+    private readonly metaAppConfigRepository: IMetaAppConfigRepository,
   ) {}
 
   async execute(
@@ -51,11 +54,25 @@ export class CreateInstagramConnectSessionUseCase {
       );
     }
 
-    if (slot.instagramConnectedAccountId) {
+    const connectedAccount = slot.instagramConnectedAccountId
+      ? await this.instagramConnectedAccountRepository.findByIdAndUserId(
+          slot.instagramConnectedAccountId,
+          authUserId,
+        )
+      : null;
+    const metaAppConfig = connectedAccount?.metaAppConfigId
+      ? await this.metaAppConfigRepository.findById(
+          connectedAccount.metaAppConfigId,
+        )
+      : await this.metaAppConfigRepository.findActiveByUserId(authUserId);
+
+    if (!metaAppConfig || metaAppConfig.userId !== authUserId) {
       throw new AppError(
-        "Este slot já possui uma conta conectada",
-        400,
-        "account_slot_occupied",
+        connectedAccount
+          ? "A conta precisa ser reconectada com uma configuração Meta válida"
+          : "Cadastre sua Meta App antes de conectar uma conta",
+        409,
+        "meta_app_not_configured",
       );
     }
 
@@ -66,11 +83,19 @@ export class CreateInstagramConnectSessionUseCase {
       authUserId,
       state,
       expiresAt,
+      metaAppConfig.id,
       slotId,
     );
 
+    const instagramOAuthService = this.instagramOAuthServiceFactory.create({
+      appId: metaAppConfig.appId,
+      appSecret: metaAppConfig.appSecret,
+      redirectUri: metaAppConfig.redirectUri,
+      scopes: metaAppConfig.requestedScopes,
+    });
+
     return {
-      authorizationUrl: this.instagramOAuthService.buildAuthorizationUrl(state),
+      authorizationUrl: instagramOAuthService.buildAuthorizationUrl(state),
       state,
       expiresAt: expiresAt.toISOString(),
     };
@@ -81,9 +106,10 @@ export class CompleteInstagramConnectUseCase {
   constructor(
     private readonly oauthStateRepository: IInstagramOAuthStateRepository,
     private readonly instagramConnectedAccountRepository: IInstagramConnectedAccountRepository,
-    private readonly instagramOAuthService: IInstagramOAuthService,
+    private readonly instagramOAuthServiceFactory: IInstagramOAuthServiceFactory,
     private readonly instagramGraphService: IInstagramGraphService,
     private readonly accountSlotRepository: IAccountSlotRepository,
+    private readonly metaAppConfigRepository: IMetaAppConfigRepository,
   ) {}
 
   async execute(input: {
@@ -110,6 +136,18 @@ export class CompleteInstagramConnectUseCase {
       );
     }
 
+    const metaAppConfig = await this.metaAppConfigRepository.findById(
+      oauthState.metaAppConfigId,
+    );
+
+    if (!metaAppConfig || metaAppConfig.userId !== oauthState.userId) {
+      throw new AppError(
+        "A configuração Meta desta sessão não está mais disponível",
+        409,
+        "meta_app_config_not_found",
+      );
+    }
+
     await this.accountSlotRepository.expireOverdueSlots(oauthState.userId);
 
     const slot = await this.accountSlotRepository.findByIdAndUserId(
@@ -133,9 +171,14 @@ export class CompleteInstagramConnectUseCase {
       );
     }
 
-    const tokens = await this.instagramOAuthService.exchangeAuthorizationCode(
-      input.code,
-    );
+    const instagramOAuthService = this.instagramOAuthServiceFactory.create({
+      appId: metaAppConfig.appId,
+      appSecret: metaAppConfig.appSecret,
+      redirectUri: metaAppConfig.redirectUri,
+      scopes: metaAppConfig.requestedScopes,
+    });
+    const tokens =
+      await instagramOAuthService.exchangeAuthorizationCode(input.code);
     const profile = await this.instagramGraphService.getProfile(
       tokens.accessToken,
     );
@@ -166,6 +209,18 @@ export class CompleteInstagramConnectUseCase {
     }
 
     if (
+      existingAccount?.metaAppConfigId &&
+      existingAccount.metaAppConfigId !== metaAppConfig.id &&
+      existingAccount.isConnected()
+    ) {
+      throw new AppError(
+        "Esta conta está vinculada a outra configuração Meta",
+        409,
+        "instagram_account_meta_app_mismatch",
+      );
+    }
+
+    if (
       slot.instagramConnectedAccountId &&
       slot.instagramConnectedAccountId !== existingAccount?.id
     ) {
@@ -179,6 +234,7 @@ export class CompleteInstagramConnectUseCase {
     let account = existingAccount;
 
     if (account) {
+      account.bindToMetaAppConfigAfterAuthorization(metaAppConfig.id);
       account.updateOAuthData({
         accessToken: tokens.accessToken,
         tokenExpiresAt,
@@ -197,6 +253,7 @@ export class CompleteInstagramConnectUseCase {
         accessToken: tokens.accessToken,
         tokenExpiresAt,
         scopes: tokens.scopes,
+        metaAppConfigId: metaAppConfig.id,
       });
     }
 
