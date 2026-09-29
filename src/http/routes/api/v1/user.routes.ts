@@ -1,25 +1,16 @@
 import { BaseHttpRoute, type THttpRoute } from "@/http/routes/base-http-route";
-import { GetAuthenticatedUserUseCase } from "@/app/usecases/user/get-authenticated-user.usecase";
-import { DeleteUserAccountUseCase } from "@/app/usecases/user/delete-user-account.usecase";
-import { PrismaUserRepository } from "@/infra/database/prisma/repositories/prisma-user.repository";
 import { getAuthContext } from "@/http/client";
 import { deleteUserAccountBodySchema } from "@/http/validation/schemas/user.schema";
-import { AppError } from "@/http/services/app/errors/app.error";
+import { AppError } from "@/domain/errors/app.error";
 
 export class UserRoutes extends BaseHttpRoute {
   build(): THttpRoute {
     const route = this.serverClient.createUserRoute();
-    const userRepository = new PrismaUserRepository();
-    const getAuthenticatedUserUseCase = new GetAuthenticatedUserUseCase(
-      userRepository,
-    );
-    const deleteUserAccountUseCase = new DeleteUserAccountUseCase(
-      userRepository,
-    );
+    const { getAuthenticatedUser, deleteAccount } = this.container.useCases.user;
 
     route.get("/me", async (context) => {
       const { authUserId } = getAuthContext(context);
-      const user = await getAuthenticatedUserUseCase.execute(authUserId!);
+      const user = await getAuthenticatedUser.execute(authUserId!);
       return this.successResponse("OK", user, 200);
     });
 
@@ -33,7 +24,7 @@ export class UserRoutes extends BaseHttpRoute {
         });
       }
 
-      await deleteUserAccountUseCase.execute(authUserId!);
+      await deleteAccount.execute(authUserId!);
 
       return this.successResponse("Conta excluída com sucesso", null, 200);
     });

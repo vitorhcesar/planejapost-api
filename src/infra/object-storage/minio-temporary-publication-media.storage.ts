@@ -6,7 +6,7 @@ import type {
   ITemporaryPublicationMediaStorage,
   IUploadTemporaryMediaInput,
 } from "@/domain/storages/temporary-publication-media.storage";
-import { EnvService } from "@/http/services/env/env.service";
+import { EnvService } from "@/infra/config/env.service";
 
 export class MinioTemporaryPublicationMediaStorage
   implements ITemporaryPublicationMediaStorage

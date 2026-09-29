@@ -1,7 +1,7 @@
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { AppRoleEnum } from "@/domain/enums/app-role.enum";
-import { EnvService } from "@/http/services/env/env.service";
+import { EnvService } from "@/infra/config/env.service";
 import { getPrismaClient } from "@/infra/database/prisma/client";
 
 const env = EnvService.getInstance();

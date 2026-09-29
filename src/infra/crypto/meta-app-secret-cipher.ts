@@ -4,7 +4,7 @@ import {
   randomBytes,
   scryptSync,
 } from "node:crypto";
-import { EnvService } from "@/http/services/env/env.service";
+import { EnvService } from "@/infra/config/env.service";
 
 const ALGORITHM = "aes-256-gcm";
 const CURRENT_VERSION = "v1";

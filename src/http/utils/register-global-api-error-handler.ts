@@ -1,5 +1,5 @@
 import type { Elysia } from "elysia";
-import { AppError } from "@/http/services/app/errors/app.error";
+import { AppError } from "@/domain/errors/app.error";
 
 export function registerGlobalApiErrorHandler(app: Elysia): void {
   app.onError(({ error, set, request }) => {

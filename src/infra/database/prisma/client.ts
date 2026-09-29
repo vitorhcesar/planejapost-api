@@ -1,5 +1,5 @@
 import { PrismaClient } from "../../../../generated/prisma";
-import { EnvService } from "@/http/services/env/env.service";
+import { EnvService } from "@/infra/config/env.service";
 
 let prismaClient: PrismaClient | null = null;
 

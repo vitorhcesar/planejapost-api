@@ -1,6 +1,7 @@
 import { cors } from "@elysiajs/cors";
 import { swagger } from "@elysiajs/swagger";
-import { EnvService } from "@/http/services/env/env.service";
+import { AppContainer } from "@/composition/app.container";
+import { EnvService } from "@/infra/config/env.service";
 import { createHttpServerClient } from "@/http/client";
 import { HealthRoutes } from "@/http/routes/api/v1/health.routes";
 import { UserRoutes } from "@/http/routes/api/v1/user.routes";
@@ -13,19 +14,18 @@ import { WalletRoutes } from "@/http/routes/api/v1/wallet.routes";
 import { OmegaPayWebhookRoutes } from "@/http/routes/api/v1/omegapay-webhook.routes";
 import { AccountSlotRoutes } from "@/http/routes/api/v1/account-slot.routes";
 import { EmailVerificationRoutes } from "@/http/routes/api/v1/email-verification.routes";
-import { buildPublicObjectRoutes } from "@/http/routes/api/v1/public-object.routes";
+import { PublicObjectRoutes } from "@/http/routes/api/v1/public-object.routes";
 import { registerGlobalApiErrorHandler } from "@/http/utils/register-global-api-error-handler";
-import { PublicationWorker } from "@/infra/queue/publication-queue";
 import { MetaAppConfigRoutes } from "@/http/routes/api/v1/meta-app-config.routes";
 
 export class AppService {
   private readonly env = EnvService.getInstance();
   private readonly serverClient = createHttpServerClient();
+  private readonly container = AppContainer.create();
 
   start(): void {
     const app = this.serverClient.getApp();
-
-    const publicationWorker = new PublicationWorker();
+    const publicationWorker = this.container.publicationWorker;
 
     app
       .use(
@@ -49,22 +49,22 @@ export class AppService {
         }),
       );
 
-    app.use(buildPublicObjectRoutes());
+    app.use(new PublicObjectRoutes(this.serverClient, this.container).build());
 
     app.group("/api/v1", (group) =>
       group
-        .use(new HealthRoutes(this.serverClient).build())
-        .use(new InstagramCallbackRoutes(this.serverClient).build())
-        .use(new InstagramComplianceRoutes(this.serverClient).build())
-        .use(new OmegaPayWebhookRoutes(this.serverClient).build())
-        .use(new UserRoutes(this.serverClient).build())
-        .use(new EmailVerificationRoutes(this.serverClient).build())
-        .use(new InstagramRoutes(this.serverClient).build())
-        .use(new MetaAppConfigRoutes(this.serverClient).build())
-        .use(new PublicationRoutes(this.serverClient).build())
-        .use(new WalletRoutes(this.serverClient).build())
-        .use(new AccountSlotRoutes(this.serverClient).build())
-        .use(new AdminRoutes(this.serverClient).build()),
+        .use(new HealthRoutes(this.serverClient, this.container).build())
+        .use(new InstagramCallbackRoutes(this.serverClient, this.container).build())
+        .use(new InstagramComplianceRoutes(this.serverClient, this.container).build())
+        .use(new OmegaPayWebhookRoutes(this.serverClient, this.container).build())
+        .use(new UserRoutes(this.serverClient, this.container).build())
+        .use(new EmailVerificationRoutes(this.serverClient, this.container).build())
+        .use(new InstagramRoutes(this.serverClient, this.container).build())
+        .use(new MetaAppConfigRoutes(this.serverClient, this.container).build())
+        .use(new PublicationRoutes(this.serverClient, this.container).build())
+        .use(new WalletRoutes(this.serverClient, this.container).build())
+        .use(new AccountSlotRoutes(this.serverClient, this.container).build())
+        .use(new AdminRoutes(this.serverClient, this.container).build()),
     );
 
     registerGlobalApiErrorHandler(app);

@@ -6,7 +6,7 @@ import type {
   IWalletRecharge,
   IWalletRepository,
 } from "@/domain/repositories/wallet.repository";
-import { AppError } from "@/http/services/app/errors/app.error";
+import { AppError } from "@/domain/errors/app.error";
 import {
   WalletRechargeStatusEnum,
   WalletTransactionTypeEnum,

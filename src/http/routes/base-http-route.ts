@@ -1,3 +1,4 @@
+import type { IAppContainer } from "@/composition/app.container";
 import type { Elysia } from "elysia";
 
 export interface IHttpSuccessResponse<TData> {
@@ -16,7 +17,10 @@ export interface IHttpErrorResponse {
 export type THttpRoute = ReturnType<Elysia["group"]>;
 
 export abstract class BaseHttpRoute {
-  constructor(protected readonly serverClient: HttpServerClientLike) {}
+  constructor(
+    protected readonly serverClient: HttpServerClientLike,
+    protected readonly container: IAppContainer,
+  ) {}
 
   abstract build(): THttpRoute;
 

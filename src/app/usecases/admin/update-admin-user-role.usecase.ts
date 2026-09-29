@@ -1,4 +1,4 @@
-import { AppError } from "@/http/services/app/errors/app.error";
+import { AppError } from "@/domain/errors/app.error";
 import type { IUserRepository } from "@/domain/repositories/user.repository";
 import { AppRoleEnum } from "@/domain/enums/app-role.enum";
 import { mapUserToDto } from "@/app/usecases/user/map-user-to-dto.util";

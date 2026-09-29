@@ -1,60 +1,22 @@
-import {
-  CreateAndPublishPublicationUseCase,
-  GetPublicationUseCase,
-  GetPublicationThumbnailUseCase,
-  ListPublicationsUseCase,
-} from "@/app/usecases/publication/create-and-publish-publication.usecase";
 import { getAuthContext } from "@/http/client";
 import { BaseHttpRoute, type THttpRoute } from "@/http/routes/base-http-route";
-import { AppError } from "@/http/services/app/errors/app.error";
-import { EnvService } from "@/http/services/env/env.service";
+import { AppError } from "@/domain/errors/app.error";
 import { createPublicationBodySchema } from "@/http/validation/schemas/publication.schema";
-import { PrismaInstagramConnectedAccountRepository } from "@/infra/database/prisma/repositories/prisma-instagram-connected-account.repository";
-import { PrismaPublicationRepository } from "@/infra/database/prisma/repositories/prisma-publication.repository";
-import { InstagramGraphClient } from "@/infra/instagram/instagram-graph.client";
-import { MinioTemporaryPublicationMediaStorage } from "@/infra/object-storage/minio-temporary-publication-media.storage";
-import { PublicationQueue } from "@/infra/queue/publication-queue";
-
-const ALLOWED_MIME_TYPES = new Set([
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "video/mp4",
-  "video/quicktime",
-]);
-
-const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024; // 100 MB
 
 export class PublicationRoutes extends BaseHttpRoute {
   build(): THttpRoute {
     const route = this.serverClient.createUserRoute();
-
-    const env = EnvService.getInstance();
-    const publicationRepository = new PrismaPublicationRepository();
-    const instagramConnectedAccountRepository =
-      new PrismaInstagramConnectedAccountRepository();
-    const publicationQueue = new PublicationQueue();
-    const tempStorage = new MinioTemporaryPublicationMediaStorage();
-
-    const createAndPublishPublicationUseCase =
-      new CreateAndPublishPublicationUseCase(
-        publicationRepository,
-        instagramConnectedAccountRepository,
-        publicationQueue,
-        env,
-      );
-    const instagramGraphClient = new InstagramGraphClient();
-    const getPublicationUseCase = new GetPublicationUseCase(publicationRepository);
-    const listPublicationsUseCase = new ListPublicationsUseCase(publicationRepository);
-    const getPublicationThumbnailUseCase = new GetPublicationThumbnailUseCase(
-      publicationRepository,
-      instagramConnectedAccountRepository,
-      instagramGraphClient,
-    );
+    const {
+      list,
+      uploadMedia,
+      createAndPublish,
+      getThumbnail,
+      get,
+    } = this.container.useCases.publication;
 
     route.get("/publications", async (context) => {
       const { authUserId } = getAuthContext(context);
-      const publications = await listPublicationsUseCase.execute(authUserId!);
+      const publications = await list.execute(authUserId!);
       return this.successResponse("OK", publications, 200);
     });
 
@@ -68,31 +30,7 @@ export class PublicationRoutes extends BaseHttpRoute {
         throw new AppError("Campo 'file' é obrigatório", 400, "file_required");
       }
 
-      if (!ALLOWED_MIME_TYPES.has(file.type)) {
-        throw new AppError(
-          `Tipo de arquivo não suportado: ${file.type}. Use JPEG, PNG, WebP ou MP4.`,
-          400,
-          "unsupported_media_type",
-        );
-      }
-
-      if (file.size > MAX_FILE_SIZE_BYTES) {
-        throw new AppError(
-          "O arquivo excede o tamanho máximo de 100 MB",
-          400,
-          "file_too_large",
-        );
-      }
-
-      const buffer = Buffer.from(await file.arrayBuffer());
-      const objectKey = tempStorage.buildObjectKey(authUserId!, file.name);
-
-      await tempStorage.upload({
-        objectKey,
-        buffer,
-        contentType: file.type,
-        size: file.size,
-      });
+      const { objectKey } = await uploadMedia.execute(authUserId!, file);
 
       return this.successResponse(
         "Mídia enviada com sucesso",
@@ -111,7 +49,7 @@ export class PublicationRoutes extends BaseHttpRoute {
         });
       }
 
-      const publication = await createAndPublishPublicationUseCase.execute(
+      const publication = await createAndPublish.execute(
         authUserId!,
         parsedBody.data,
       );
@@ -123,7 +61,7 @@ export class PublicationRoutes extends BaseHttpRoute {
       const { authUserId } = getAuthContext(context);
       const { publicationId } = context.params;
 
-      const thumbnailUrl = await getPublicationThumbnailUseCase.execute(
+      const thumbnailUrl = await getThumbnail.execute(
         authUserId!,
         publicationId,
       );
@@ -143,10 +81,7 @@ export class PublicationRoutes extends BaseHttpRoute {
         );
       }
 
-      const publication = await getPublicationUseCase.execute(
-        authUserId!,
-        publicationId,
-      );
+      const publication = await get.execute(authUserId!, publicationId);
 
       return this.successResponse("OK", publication, 200);
     });

@@ -1,5 +1,5 @@
 import { Elysia, type Context } from "elysia";
-import { AppError } from "@/http/services/app/errors/app.error";
+import { AppError } from "@/domain/errors/app.error";
 import { AppRoleEnum } from "@/domain/enums/app-role.enum";
 import type { IAuthContext } from "@/http/middleware/auth-session.middleware";
 

@@ -15,7 +15,7 @@ import type {
   IInstagramOAuthStateRepository,
 } from "@/domain/repositories/instagram-connected-account.repository";
 import type { IMetaAppConfigRepository } from "@/domain/repositories/meta-app-config.repository";
-import { AppError } from "@/http/services/app/errors/app.error";
+import { AppError } from "@/domain/errors/app.error";
 import { randomBytes } from "node:crypto";
 
 export class CreateInstagramConnectSessionUseCase {

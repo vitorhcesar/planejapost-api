@@ -5,7 +5,7 @@ import {
 } from "@/app/usecases/meta-app-config/meta-app-config.usecases";
 import { MetaAppConfig } from "@/domain/entities/meta-app-config.entity";
 import type { IMetaAppConfigRepository } from "@/domain/repositories/meta-app-config.repository";
-import { AppError } from "@/http/services/app/errors/app.error";
+import { AppError } from "@/domain/errors/app.error";
 
 class InMemoryMetaAppConfigRepository implements IMetaAppConfigRepository {
   configs: MetaAppConfig[] = [];

@@ -1,15 +1,16 @@
-import { AppError } from "@/http/services/app/errors/app.error";
+import { AppError } from "@/domain/errors/app.error";
 import { Publication } from "@/domain/entities/publication.entity";
 import {
   PublicationDestinationScopeEnum,
   PublicationTypeEnum,
 } from "@/domain/enums/instagram.enum";
 import type { IInstagramConnectedAccountRepository } from "@/domain/repositories/instagram-connected-account.repository";
+import type { IInstagramGraphService } from "@/domain/instagram/instagram.service";
 import type { IPublicationRepository } from "@/domain/repositories/publication.repository";
 import type { IPublicationDto } from "@/app/usecases/publication/dto/publication.dto";
 import { mapPublicationToDto } from "@/app/usecases/publication/map-publication-to-dto.util";
-import type { PublicationQueue } from "@/infra/queue/publication-queue";
-import type { EnvService } from "@/http/services/env/env.service";
+import type { IPublicationQueue } from "@/domain/queue/publication-queue";
+import type { IPublicApiConfig } from "@/domain/config/public-api.config";
 
 export interface ICreatePublicationInput {
   type: PublicationTypeEnum;
@@ -24,8 +25,8 @@ export class CreateAndPublishPublicationUseCase {
   constructor(
     private readonly publicationRepository: IPublicationRepository,
     private readonly instagramConnectedAccountRepository: IInstagramConnectedAccountRepository,
-    private readonly publicationQueue: PublicationQueue,
-    private readonly env: EnvService,
+    private readonly publicationQueue: IPublicationQueue,
+    private readonly publicApiConfig: IPublicApiConfig,
   ) {}
 
   async execute(
@@ -56,7 +57,7 @@ export class CreateAndPublishPublicationUseCase {
     }
 
     const mediaUrls = objectKeys.map(
-      (objectKey) => `${this.env.publicApiUrl}/public/objects/${objectKey}`,
+      (objectKey) => `${this.publicApiConfig.publicApiUrl}/public/objects/${objectKey}`,
     );
 
     const publication = Publication.create({
@@ -160,7 +161,7 @@ export class GetPublicationThumbnailUseCase {
   constructor(
     private readonly publicationRepository: IPublicationRepository,
     private readonly instagramAccountRepository: IInstagramConnectedAccountRepository,
-    private readonly instagramGraphClient: { getMediaThumbnailUrl: (mediaId: string, accessToken: string) => Promise<string | null> },
+    private readonly instagramGraphClient: IInstagramGraphService,
   ) {}
 
   async execute(authUserId: string, publicationId: string): Promise<string | null> {

@@ -4,7 +4,7 @@ import type {
   IEmailService,
   ISendEmailInput,
 } from "@/domain/services/email.service";
-import { EnvService } from "@/http/services/env/env.service";
+import { EnvService } from "@/infra/config/env.service";
 
 export class NodemailerMailService implements IEmailService {
   private readonly env = EnvService.getInstance();

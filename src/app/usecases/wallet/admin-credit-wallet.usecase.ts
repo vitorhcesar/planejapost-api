@@ -1,4 +1,4 @@
-import { AppError } from "@/http/services/app/errors/app.error";
+import { AppError } from "@/domain/errors/app.error";
 import type { IWalletRepository } from "@/domain/repositories/wallet.repository";
 import { WalletTransactionTypeEnum } from "@/domain/enums/wallet.enum";
 import type { IWalletDto } from "@/app/usecases/wallet/dto/wallet.dto";

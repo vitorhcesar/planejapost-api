@@ -1,5 +1,5 @@
-import { AppError } from "@/http/services/app/errors/app.error";
-import { EnvService } from "@/http/services/env/env.service";
+import { AppError } from "@/domain/errors/app.error";
+import { EnvService } from "@/infra/config/env.service";
 import type {
   IOmegaPayReceivePixInput,
   IOmegaPayReceivePixResult,

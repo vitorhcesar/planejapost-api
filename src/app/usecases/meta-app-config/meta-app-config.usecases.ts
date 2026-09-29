@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { MetaAppConfig } from "@/domain/entities/meta-app-config.entity";
 import type { IMetaAppConfigRepository } from "@/domain/repositories/meta-app-config.repository";
-import { AppError } from "@/http/services/app/errors/app.error";
+import { AppError } from "@/domain/errors/app.error";
 
 export interface IMetaAppConfigDto {
   id: string;

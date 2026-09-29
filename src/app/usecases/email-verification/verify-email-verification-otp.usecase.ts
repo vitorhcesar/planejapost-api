@@ -1,4 +1,4 @@
-import { AppError } from "@/http/services/app/errors/app.error";
+import { AppError } from "@/domain/errors/app.error";
 import type { IEmailVerificationOtpRepository } from "@/domain/repositories/email-verification-otp.repository";
 import type { IUserRepository } from "@/domain/repositories/user.repository";
 import { isEmailVerificationOtpValid } from "@/app/usecases/email-verification/email-verification-otp.util";

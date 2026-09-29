@@ -1,41 +1,22 @@
 import { getAuthContext } from "@/http/client";
 import { BaseHttpRoute, type THttpRoute } from "@/http/routes/base-http-route";
-import { AppError } from "@/http/services/app/errors/app.error";
-import {
-  GetAccountSlotPricingUseCase,
-  ListAccountSlotsUseCase,
-  PurchaseAccountSlotsUseCase,
-  RenewAccountSlotUseCase,
-} from "@/app/usecases/account-slot/account-slot.usecases";
-import { PrismaAccountSlotRepository } from "@/infra/database/prisma/repositories/prisma-account-slot.repository";
-import { PrismaWalletRepository } from "@/infra/database/prisma/repositories/prisma-wallet.repository";
+import { AppError } from "@/domain/errors/app.error";
 import { purchaseAccountSlotsBodySchema } from "@/http/validation/schemas/account-slot.schema";
 
 export class AccountSlotRoutes extends BaseHttpRoute {
   build(): THttpRoute {
     const route = this.serverClient.createUserRoute();
-    const accountSlotRepository = new PrismaAccountSlotRepository();
-    const walletRepository = new PrismaWalletRepository();
-
-    const getAccountSlotPricingUseCase = new GetAccountSlotPricingUseCase();
-    const listAccountSlotsUseCase = new ListAccountSlotsUseCase(accountSlotRepository);
-    const purchaseAccountSlotsUseCase = new PurchaseAccountSlotsUseCase(
-      accountSlotRepository,
-      walletRepository,
-    );
-    const renewAccountSlotUseCase = new RenewAccountSlotUseCase(
-      accountSlotRepository,
-      walletRepository,
-    );
+    const { getPricing, list, purchase, renew } =
+      this.container.useCases.accountSlot;
 
     route.get("/slots/pricing", async () => {
-      const pricing = getAccountSlotPricingUseCase.execute();
+      const pricing = getPricing.execute();
       return this.successResponse("OK", pricing, 200);
     });
 
     route.get("/slots", async (context) => {
       const { authUserId } = getAuthContext(context);
-      const slots = await listAccountSlotsUseCase.execute(authUserId!);
+      const slots = await list.execute(authUserId!);
       return this.successResponse("OK", slots, 200);
     });
 
@@ -43,7 +24,7 @@ export class AccountSlotRoutes extends BaseHttpRoute {
       const { authUserId } = getAuthContext(context);
       const body = purchaseAccountSlotsBodySchema.parse(context.body);
 
-      const result = await purchaseAccountSlotsUseCase.execute({
+      const result = await purchase.execute({
         userId: authUserId!,
         quantity: body.quantity,
         combo: body.combo,
@@ -60,7 +41,7 @@ export class AccountSlotRoutes extends BaseHttpRoute {
         throw new AppError("Slot inválido", 400, "invalid_slot_id");
       }
 
-      const result = await renewAccountSlotUseCase.execute(authUserId!, slotId);
+      const result = await renew.execute(authUserId!, slotId);
       return this.successResponse("Slot renovado com sucesso", result, 200);
     });
 

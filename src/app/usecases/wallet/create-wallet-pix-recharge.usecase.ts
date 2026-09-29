@@ -1,5 +1,5 @@
-import { AppError } from "@/http/services/app/errors/app.error";
-import { EnvService } from "@/http/services/env/env.service";
+import { AppError } from "@/domain/errors/app.error";
+import type { IPublicApiConfig } from "@/domain/config/public-api.config";
 import type { IUserRepository } from "@/domain/repositories/user.repository";
 import type { IWalletRepository } from "@/domain/repositories/wallet.repository";
 import type { IOmegaPayService } from "@/domain/acquirer/omegapay.service";
@@ -18,12 +18,11 @@ export interface ICreateWalletPixRechargeInput {
 }
 
 export class CreateWalletPixRechargeUseCase {
-  private readonly env = EnvService.getInstance();
-
   constructor(
     private readonly walletRepository: IWalletRepository,
     private readonly userRepository: IUserRepository,
     private readonly omegaPayService: IOmegaPayService,
+    private readonly publicApiConfig: IPublicApiConfig,
   ) {}
 
   async execute(input: ICreateWalletPixRechargeInput): Promise<IWalletRechargeDto> {
@@ -63,7 +62,7 @@ export class CreateWalletPixRechargeUseCase {
         rechargeId: recharge.id,
         identifier: recharge.identifier,
       },
-      callbackUrl: `${this.env.publicApiUrl}/api/v1/webhooks/omegapay`,
+      callbackUrl: `${this.publicApiConfig.publicApiUrl}/api/v1/webhooks/omegapay`,
     });
 
     const updatedRecharge = await this.walletRepository.updateRechargeAfterPixCreation({

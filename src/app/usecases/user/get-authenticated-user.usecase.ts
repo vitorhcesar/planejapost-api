@@ -1,4 +1,4 @@
-import { AppError } from "@/http/services/app/errors/app.error";
+import { AppError } from "@/domain/errors/app.error";
 import type { IUserRepository } from "@/domain/repositories/user.repository";
 import { mapUserToDto } from "@/app/usecases/user/map-user-to-dto.util";
 import type { IUserDto } from "@/app/usecases/user/dto/user.dto";

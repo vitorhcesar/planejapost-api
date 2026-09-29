@@ -1,4 +1,4 @@
-import { AppError } from "@/http/services/app/errors/app.error";
+import { AppError } from "@/domain/errors/app.error";
 import type { IOmegaPayWebhookRepository } from "@/domain/repositories/omegapay-webhook.repository";
 import type { IAdminOmegaPayWebhookDetailsDto } from "@/app/usecases/admin/dto/admin-omegapay-webhook.dto";
 

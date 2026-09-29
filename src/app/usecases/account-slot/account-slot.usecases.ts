@@ -1,4 +1,4 @@
-import { AppError } from "@/http/services/app/errors/app.error";
+import { AppError } from "@/domain/errors/app.error";
 import {
   addSlotDuration,
   calculateSlotPurchaseTotal,

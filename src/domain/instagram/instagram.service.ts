@@ -31,4 +31,8 @@ export interface IInstagramOAuthServiceFactory {
 
 export interface IInstagramGraphService {
   getProfile(accessToken: string): Promise<IInstagramProfile>;
+  getMediaThumbnailUrl(
+    mediaId: string,
+    accessToken: string,
+  ): Promise<string | null>;
 }

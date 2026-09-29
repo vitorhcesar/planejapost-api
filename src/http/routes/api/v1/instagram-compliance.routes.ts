@@ -1,10 +1,5 @@
 import { BaseHttpRoute, type THttpRoute } from "@/http/routes/base-http-route";
-import { HandleInstagramMetaComplianceUseCase } from "@/app/usecases/instagram/handle-instagram-meta-compliance.usecase";
-import { PrismaInstagramConnectedAccountRepository } from "@/infra/database/prisma/repositories/prisma-instagram-connected-account.repository";
-import { PrismaAccountSlotRepository } from "@/infra/database/prisma/repositories/prisma-account-slot.repository";
-import { EnvService } from "@/http/services/env/env.service";
 import { parseMetaSignedRequest } from "@/infra/meta/parse-meta-signed-request.util";
-import { PrismaMetaAppConfigRepository } from "@/infra/database/prisma/repositories/prisma-meta-app-config.repository";
 
 async function extractSignedRequest(request: Request): Promise<string | null> {
   const contentType = request.headers.get("content-type") ?? "";
@@ -28,22 +23,15 @@ async function extractSignedRequest(request: Request): Promise<string | null> {
 export class InstagramComplianceRoutes extends BaseHttpRoute {
   build(): THttpRoute {
     const route = this.serverClient.createPublicRoute();
-    const env = EnvService.getInstance();
-    const metaAppConfigRepository = new PrismaMetaAppConfigRepository();
-
-    const handleInstagramMetaComplianceUseCase =
-      new HandleInstagramMetaComplianceUseCase(
-        new PrismaInstagramConnectedAccountRepository(),
-        new PrismaAccountSlotRepository(),
-        env.corsOrigin,
-      );
+    const { handleMetaCompliance } = this.container.useCases.instagram;
+    const { metaAppConfig } = this.container.repositories;
 
     route.post("/meta-compliance/:publicId/deauthorize", async (context) => {
-      const metaAppConfig = await metaAppConfigRepository.findByPublicId(
+      const metaAppConfigEntity = await metaAppConfig.findByPublicId(
         context.params.publicId,
       );
 
-      if (!metaAppConfig) {
+      if (!metaAppConfigEntity) {
         return new Response("Invalid configuration", { status: 404 });
       }
 
@@ -55,27 +43,27 @@ export class InstagramComplianceRoutes extends BaseHttpRoute {
 
       const payload = parseMetaSignedRequest(
         signedRequest,
-        metaAppConfig.appSecret,
+        metaAppConfigEntity.appSecret,
       );
 
       if (!payload) {
         return new Response("Invalid signed_request", { status: 403 });
       }
 
-      await handleInstagramMetaComplianceUseCase.deauthorizeByInstagramUserId(
+      await handleMetaCompliance.deauthorizeByInstagramUserId(
         payload.user_id,
-        metaAppConfig.id,
+        metaAppConfigEntity.id,
       );
 
       return new Response("OK", { status: 200 });
     });
 
     route.post("/meta-compliance/:publicId/data-deletion", async (context) => {
-      const metaAppConfig = await metaAppConfigRepository.findByPublicId(
+      const metaAppConfigEntity = await metaAppConfig.findByPublicId(
         context.params.publicId,
       );
 
-      if (!metaAppConfig) {
+      if (!metaAppConfigEntity) {
         return new Response("Invalid configuration", { status: 404 });
       }
 
@@ -87,7 +75,7 @@ export class InstagramComplianceRoutes extends BaseHttpRoute {
 
       const payload = parseMetaSignedRequest(
         signedRequest,
-        metaAppConfig.appSecret,
+        metaAppConfigEntity.appSecret,
       );
 
       if (!payload) {
@@ -95,9 +83,9 @@ export class InstagramComplianceRoutes extends BaseHttpRoute {
       }
 
       const result =
-        await handleInstagramMetaComplianceUseCase.dataDeletionByInstagramUserId(
+        await handleMetaCompliance.dataDeletionByInstagramUserId(
           payload.user_id,
-          metaAppConfig.id,
+          metaAppConfigEntity.id,
         );
 
       return Response.json({

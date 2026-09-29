@@ -1,5 +1,5 @@
 import { InstagramConnectedAccountStatusEnum } from "@/domain/enums/instagram.enum";
-import { AppError } from "@/http/services/app/errors/app.error";
+import { AppError } from "@/domain/errors/app.error";
 
 export type InstagramAccountIssueType =
   | "token_expired"

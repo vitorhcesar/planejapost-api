@@ -1,14 +1,15 @@
+import type { IPublicationQueue } from "@/domain/queue/publication-queue";
 import { Queue, Worker, type Job } from "bullmq";
-import { EnvService } from "@/http/services/env/env.service";
-import { PrismaPublicationRepository } from "@/infra/database/prisma/repositories/prisma-publication.repository";
-import { PrismaInstagramConnectedAccountRepository } from "@/infra/database/prisma/repositories/prisma-instagram-connected-account.repository";
-import { InstagramContentPublishingService } from "@/infra/instagram/instagram-content-publishing.service";
-import { InstagramOAuthClientFactory } from "@/infra/instagram/instagram-oauth.client";
-import { MinioTemporaryPublicationMediaStorage } from "@/infra/object-storage/minio-temporary-publication-media.storage";
+import { EnvService } from "@/infra/config/env.service";
+import type { IInstagramContentPublishingService } from "@/domain/instagram/instagram-content-publishing.service";
+import type { IInstagramOAuthServiceFactory } from "@/domain/instagram/instagram.service";
+import type { IPublicationRepository } from "@/domain/repositories/publication.repository";
+import type { IInstagramConnectedAccountRepository } from "@/domain/repositories/instagram-connected-account.repository";
+import type { IMetaAppConfigRepository } from "@/domain/repositories/meta-app-config.repository";
+import type { ITemporaryPublicationMediaStorage } from "@/domain/storages/temporary-publication-media.storage";
 import { PublicationTypeEnum } from "@/domain/enums/instagram.enum";
 import { isInstagramAccountAuthFailure } from "@/domain/instagram/instagram-account-health.util";
-import { AppError } from "@/http/services/app/errors/app.error";
-import { PrismaMetaAppConfigRepository } from "@/infra/database/prisma/repositories/prisma-meta-app-config.repository";
+import { AppError } from "@/domain/errors/app.error";
 
 export const PUBLICATION_QUEUE_NAME = "publication";
 
@@ -21,7 +22,7 @@ function buildRedisConnection() {
   return { host: env.redisHost, port: env.redisPort };
 }
 
-export class PublicationQueue {
+export class PublicationQueue implements IPublicationQueue {
   private readonly queue: Queue<IPublicationJobData>;
 
   constructor() {
@@ -49,10 +50,20 @@ export class PublicationQueue {
   }
 }
 
+export interface IPublicationWorkerDependencies {
+  publicationRepository: IPublicationRepository;
+  accountRepository: IInstagramConnectedAccountRepository;
+  publishingService: IInstagramContentPublishingService;
+  oauthServiceFactory: IInstagramOAuthServiceFactory;
+  metaAppConfigRepository: IMetaAppConfigRepository;
+  tempStorage: ITemporaryPublicationMediaStorage;
+  publicApiUrl: string;
+}
+
 export class PublicationWorker {
   private readonly worker: Worker<IPublicationJobData>;
 
-  constructor() {
+  constructor(private readonly deps: IPublicationWorkerDependencies) {
     this.worker = new Worker<IPublicationJobData>(
       PUBLICATION_QUEUE_NAME,
       (job) => this.process(job),
@@ -73,13 +84,15 @@ export class PublicationWorker {
   private async process(job: Job<IPublicationJobData>): Promise<void> {
     const { publicationId } = job.data;
 
-    const publicationRepository = new PrismaPublicationRepository();
-    const accountRepository = new PrismaInstagramConnectedAccountRepository();
-    const publishingService = new InstagramContentPublishingService();
-    const oauthServiceFactory = new InstagramOAuthClientFactory();
-    const metaAppConfigRepository = new PrismaMetaAppConfigRepository();
-    const tempStorage = new MinioTemporaryPublicationMediaStorage();
-    const env = EnvService.getInstance();
+    const {
+      publicationRepository,
+      accountRepository,
+      publishingService,
+      oauthServiceFactory,
+      metaAppConfigRepository,
+      tempStorage,
+      publicApiUrl,
+    } = this.deps;
 
     const publication = await publicationRepository.findById(publicationId);
 
@@ -153,7 +166,7 @@ export class PublicationWorker {
 
         const objectKeys = publication.objectKeys;
         const mediaUrls = objectKeys.map(
-          (objectKey) => `${env.publicApiUrl}/public/objects/${objectKey}`,
+          (objectKey) => `${publicApiUrl}/public/objects/${objectKey}`,
         );
 
         const publishInput = {
