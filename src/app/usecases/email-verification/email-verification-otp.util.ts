@@ -38,7 +38,7 @@ export function buildEmailVerificationOtpEmailContent(input: {
   name: string;
   otp: string;
 }): { subject: string; text: string; html: string } {
-  const subject = "Confirme seu e-mail — SolixPost";
+  const subject = "Confirme seu e-mail — PlanejaPost";
   const text = [
     `Olá, ${input.name}!`,
     "",

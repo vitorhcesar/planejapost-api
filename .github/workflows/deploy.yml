@@ -19,7 +19,7 @@ jobs:
     name: Deploy to VPS
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    environment: PROD_ENV
+    environment: production
 
     steps:
       # ──────────────────────────────────────────────────────────────────────
@@ -31,20 +31,20 @@ jobs:
       # ──────────────────────────────────────────────────────────────────────
       # 2. Gerar arquivo .env a partir dos secrets
       # ──────────────────────────────────────────────────────────────────────
-      # Domínio de produção: app.solixpost.com.br (frontend) / api.solixpost.com.br (API)
+      # Domínio de produção: app.planejapost.com.br (frontend) / api.planejapost.com.br (API)
       #
-      # Secrets de URL (GitHub PROD_ENV):
-      #   CORS_ORIGIN             = https://app.solixpost.com.br
-      #   BETTER_AUTH_URL         = https://api.solixpost.com.br
-      #   PUBLIC_API_URL          = https://api.solixpost.com.br
-      #   INSTAGRAM_REDIRECT_URI  = https://api.solixpost.com.br/api/v1/instagram/connect/callback
+      # Secrets de URL (GitHub production):
+      #   CORS_ORIGIN             = https://app.planejapost.com.br
+      #   BETTER_AUTH_URL         = https://api.planejapost.com.br
+      #   PUBLIC_API_URL          = https://api.planejapost.com.br
+      #   INSTAGRAM_REDIRECT_URI  = https://api.planejapost.com.br/api/v1/instagram/connect/callback
       # Cada usuário configura sua Meta App e recebe URLs exclusivas de compliance.
-      #   SMTP_FROM               = noreply@solixpost.com.br
+      #   SMTP_FROM               = noreply@planejapost.com.br
       #
       # Conexões internas Docker (hostnames dos containers):
-      #   DATABASE_URL   = postgresql://USER:PASS@solixpost-postgres:5432/DB?schema=public
-      #   REDIS_HOST     = solixpost-redis
-      #   MINIO_ENDPOINT = solixpost-minio
+      #   DATABASE_URL   = postgresql://USER:PASS@planejapost-postgres:5432/DB?schema=public
+      #   REDIS_HOST     = planejapost-redis
+      #   MINIO_ENDPOINT = planejapost-minio
       - name: Create .env file
         run: |
           cat > .env << 'ENVEOF'
@@ -164,4 +164,4 @@ jobs:
             -o StrictHostKeyChecking=yes \
             -o BatchMode=yes \
             "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
-            "docker inspect --format='{{.State.Health.Status}}' solixpost-api"
+            "docker inspect --format='{{.State.Health.Status}}' planejapost-api"

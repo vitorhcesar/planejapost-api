@@ -21,7 +21,7 @@ const envSchema = z.object({
   MINIO_PORT: z.coerce.number().int().positive().default(9000),
   MINIO_ACCESS_KEY: z.string().min(1),
   MINIO_SECRET_KEY: z.string().min(1),
-  MINIO_BUCKET: z.string().min(1).default("solixpost-temp"),
+  MINIO_BUCKET: z.string().min(1).default("planejapost-temp"),
   MINIO_USE_SSL: z
     .string()
     .transform((v) => v === "true")

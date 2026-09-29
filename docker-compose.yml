@@ -1,31 +1,31 @@
-name: solixpost
+name: planejapost
 
 services:
-  solixpost-postgres:
+  planejapost-postgres:
     image: postgres:16-alpine
-    container_name: solixpost-postgres
+    container_name: planejapost-postgres
     restart: unless-stopped
     ports:
       - "5433:5432"
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: solixpost
+      POSTGRES_DB: planejapost
     volumes:
-      - solixpost-postgres-data:/var/lib/postgresql/data
+      - planejapost-postgres-data:/var/lib/postgresql/data
 
-  solixpost-redis:
+  planejapost-redis:
     image: redis:7-alpine
-    container_name: solixpost-redis
+    container_name: planejapost-redis
     restart: unless-stopped
     ports:
       - "6379:6379"
     volumes:
-      - solixpost-redis-data:/data
+      - planejapost-redis-data:/data
 
-  solixpost-minio:
+  planejapost-minio:
     image: minio/minio:RELEASE.2024-01-16T16-07-38Z
-    container_name: solixpost-minio
+    container_name: planejapost-minio
     restart: unless-stopped
     ports:
       - "9000:9000"
@@ -35,9 +35,9 @@ services:
       MINIO_ROOT_PASSWORD: minioadmin
     command: server /data --console-address ":9001"
     volumes:
-      - solixpost-minio-data:/data
+      - planejapost-minio-data:/data
 
 volumes:
-  solixpost-postgres-data:
-  solixpost-redis-data:
-  solixpost-minio-data:
+  planejapost-postgres-data:
+  planejapost-redis-data:
+  planejapost-minio-data:

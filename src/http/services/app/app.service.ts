@@ -40,7 +40,7 @@ export class AppService {
         swagger({
           documentation: {
             info: {
-              title: "SolixPost API",
+              title: "PlanejaPost API",
               version: "0.1.0",
               description:
                 "API para publicação centralizada de posts e stories no Instagram.",

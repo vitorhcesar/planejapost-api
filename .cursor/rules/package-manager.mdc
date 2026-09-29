@@ -1,7 +1,0 @@
----
-alwaysApply: true
----
-
-# Gerenciador de pacotes
-
-O projeto utiliza o Bun como gerenciador de pacotes. Todos os comandos devem ser executados através do Bun.
