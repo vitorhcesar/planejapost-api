@@ -3,7 +3,7 @@ import type { AccountSlotStatusEnum } from "@/domain/enums/account-slot.enum";
 export interface IAccountSlot {
   id: string;
   userId: string;
-  instagramConnectedAccountId: string | null;
+  socialConnectedAccountId: string | null;
   status: AccountSlotStatusEnum;
   expiresAt: Date;
   createdAt: Date;
@@ -11,21 +11,22 @@ export interface IAccountSlot {
 }
 
 export interface IAccountSlotWithAccount extends IAccountSlot {
-  instagramAccount: {
+  socialAccount: {
     id: string;
+    platform: string;
     username: string;
     displayName: string | null;
-    profilePictureUrl: string | null;
+    avatarUrl: string | null;
     status: string;
-    tokenExpiresAt: Date;
-    integrationSource: "legacy_project_app" | "user_meta_app";
+    canPost: boolean;
+    needsReconnect: boolean;
   } | null;
 }
 
 export interface IAccountSlotRepository {
   findByIdAndUserId(id: string, userId: string): Promise<IAccountSlot | null>;
   findByUserId(userId: string): Promise<IAccountSlotWithAccount[]>;
-  findByInstagramConnectedAccountId(
+  findBySocialConnectedAccountId(
     accountId: string,
   ): Promise<IAccountSlot | null>;
   createMany(

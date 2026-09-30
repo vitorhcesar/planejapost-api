@@ -14,6 +14,7 @@ export interface IUserRepository {
   count(search?: string): Promise<number>;
   updateRole(id: string, role: AppRoleEnum): Promise<User>;
   markEmailVerified(id: string): Promise<User>;
+  updateZernioProfileId(id: string, zernioProfileId: string): Promise<User>;
   deleteById(id: string): Promise<void>;
-  countInstagramAccountsByUserId(userId: string): Promise<number>;
+  countSocialAccountsByUserId(userId: string): Promise<number>;
 }

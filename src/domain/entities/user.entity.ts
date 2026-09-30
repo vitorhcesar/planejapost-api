@@ -7,6 +7,7 @@ export interface IUserProps {
   emailVerified: boolean;
   image: string | null;
   role: AppRoleEnum;
+  zernioProfileId: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -36,6 +37,7 @@ export class User {
       emailVerified: props.emailVerified ?? false,
       image: props.image ?? null,
       role: props.role ?? AppRoleEnum.CLIENT,
+      zernioProfileId: null,
       createdAt: now,
       updatedAt: now,
     });
@@ -69,6 +71,10 @@ export class User {
     return this.props.role;
   }
 
+  get zernioProfileId(): string | null {
+    return this.props.zernioProfileId;
+  }
+
   get createdAt(): Date {
     return this.props.createdAt;
   }
@@ -79,6 +85,11 @@ export class User {
 
   isAdmin(): boolean {
     return this.props.role === AppRoleEnum.ADMIN;
+  }
+
+  setZernioProfileId(zernioProfileId: string): void {
+    this.props.zernioProfileId = zernioProfileId;
+    this.props.updatedAt = new Date();
   }
 
   toObject(): IUserProps {

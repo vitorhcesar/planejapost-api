@@ -3,14 +3,19 @@ import { Publication } from "@/domain/entities/publication.entity";
 import {
   PublicationDestinationScopeEnum,
   PublicationTypeEnum,
-} from "@/domain/enums/instagram.enum";
-import type { IInstagramConnectedAccountRepository } from "@/domain/repositories/instagram-connected-account.repository";
-import type { IInstagramGraphService } from "@/domain/instagram/instagram.service";
+} from "@/domain/enums/publication.enum";
+import type { ISocialConnectedAccountRepository } from "@/domain/repositories/social-connected-account.repository";
 import type { IPublicationRepository } from "@/domain/repositories/publication.repository";
 import type { IPublicationDto } from "@/app/usecases/publication/dto/publication.dto";
 import { mapPublicationToDto } from "@/app/usecases/publication/map-publication-to-dto.util";
-import type { IPublicationQueue } from "@/domain/queue/publication-queue";
-import type { IPublicApiConfig } from "@/domain/config/public-api.config";
+import type { IZernioMediaService } from "@/domain/zernio/zernio-media.service";
+import type { IZernioPostService } from "@/domain/zernio/zernio-post.service";
+import type { ITemporaryPublicationMediaStorage } from "@/domain/storages/temporary-publication-media.storage";
+import { buildZernioPostPayload } from "@/infra/zernio/zernio-post-payload.builder";
+import {
+  getExistingPostIdFromError,
+  mapZernioErrorToAppError,
+} from "@/domain/zernio/map-zernio-error.util";
 
 export interface ICreatePublicationInput {
   type: PublicationTypeEnum;
@@ -18,31 +23,43 @@ export interface ICreatePublicationInput {
   caption?: string | null;
   objectKey?: string;
   objectKeys?: string[];
-  instagramConnectedAccountIds?: string[];
+  socialConnectedAccountIds?: string[];
 }
 
 export class CreateAndPublishPublicationUseCase {
   constructor(
     private readonly publicationRepository: IPublicationRepository,
-    private readonly instagramConnectedAccountRepository: IInstagramConnectedAccountRepository,
-    private readonly publicationQueue: IPublicationQueue,
-    private readonly publicApiConfig: IPublicApiConfig,
+    private readonly socialConnectedAccountRepository: ISocialConnectedAccountRepository,
+    private readonly zernioPostService: IZernioPostService,
+    private readonly zernioMediaService: IZernioMediaService,
+    private readonly temporaryMediaStorage: ITemporaryPublicationMediaStorage,
   ) {}
 
   async execute(
     authUserId: string,
     input: ICreatePublicationInput,
   ): Promise<IPublicationDto> {
-    const destinationAccountIds = await this.resolveDestinationAccountIds(
+    const destinationAccounts = await this.resolveDestinationAccounts(
       authUserId,
       input,
     );
 
-    if (destinationAccountIds.length === 0) {
+    if (destinationAccounts.length === 0) {
       throw new AppError(
-        "Nenhuma conta Instagram conectada disponível para publicação",
+        "Nenhuma conta social conectada disponível para publicação",
         400,
-        "no_instagram_accounts_available",
+        "no_social_accounts_available",
+      );
+    }
+
+    const blockedAccount = destinationAccounts.find((account) => !account.canPost);
+
+    if (blockedAccount) {
+      throw new AppError(
+        "Uma ou mais contas selecionadas não podem publicar no momento",
+        400,
+        "platform_post_not_allowed",
+        { accountId: blockedAccount.id },
       );
     }
 
@@ -56,9 +73,7 @@ export class CreateAndPublishPublicationUseCase {
       );
     }
 
-    const mediaUrls = objectKeys.map(
-      (objectKey) => `${this.publicApiConfig.publicApiUrl}/public/objects/${objectKey}`,
-    );
+    const mediaUrls = await this.resolveMediaUrls(authUserId, objectKeys);
 
     const publication = Publication.create({
       userId: authUserId,
@@ -68,54 +83,72 @@ export class CreateAndPublishPublicationUseCase {
       mediaUrl: mediaUrls[0]!,
       objectKey: objectKeys[0]!,
       objectKeys,
-      instagramConnectedAccountIds: destinationAccountIds,
+      targets: destinationAccounts.map((account) => ({
+        socialConnectedAccountId: account.id,
+        platform: account.platform,
+        zernioAccountId: account.zernioAccountId,
+      })),
     });
 
     const savedPublication = await this.publicationRepository.save(publication);
 
-    await this.publicationQueue.enqueue(savedPublication.id);
+    try {
+      const payload = buildZernioPostPayload(savedPublication, mediaUrls);
+      const zernioPost = await this.zernioPostService.createPost(payload);
 
-    return mapPublicationToDto(savedPublication);
-  }
+      savedPublication.markAsProcessing();
+      savedPublication.setZernioPostId(zernioPost.postId);
+      await this.publicationRepository.save(savedPublication);
+    } catch (error) {
+      const existingPostId = getExistingPostIdFromError(error);
 
-  private async resolveDestinationAccountIds(
-    authUserId: string,
-    input: ICreatePublicationInput,
-  ): Promise<string[]> {
-    const connectedAccounts =
-      await this.instagramConnectedAccountRepository.findByUserId(authUserId);
-
-    const activeAccounts = connectedAccounts.filter((account) =>
-      account.isConnected(),
-    );
-
-    if (input.destinationScope === PublicationDestinationScopeEnum.ALL) {
-      return activeAccounts.map((account) => account.id);
+      if (existingPostId) {
+        savedPublication.markAsProcessing();
+        savedPublication.setZernioPostId(existingPostId);
+        await this.publicationRepository.save(savedPublication);
+      } else {
+        throw mapZernioErrorToAppError(error);
+      }
     }
 
-    const selectedIds = input.instagramConnectedAccountIds ?? [];
+    const refreshed = await this.publicationRepository.findById(savedPublication.id);
+    return mapPublicationToDto(refreshed ?? savedPublication);
+  }
+
+  private async resolveDestinationAccounts(
+    authUserId: string,
+    input: ICreatePublicationInput,
+  ) {
+    const connectedAccounts =
+      await this.socialConnectedAccountRepository.findConnectedByUserId(authUserId);
+
+    if (input.destinationScope === PublicationDestinationScopeEnum.ALL) {
+      return connectedAccounts;
+    }
+
+    const selectedIds = input.socialConnectedAccountIds ?? [];
 
     if (selectedIds.length === 0) {
       throw new AppError(
-        "Selecione ao menos uma conta Instagram",
+        "Selecione ao menos uma conta social",
         400,
-        "instagram_accounts_required",
+        "social_accounts_required",
       );
     }
 
-    const activeAccountIds = new Set(activeAccounts.map((account) => account.id));
+    const activeAccountIds = new Set(connectedAccounts.map((account) => account.id));
     const invalidIds = selectedIds.filter((id) => !activeAccountIds.has(id));
 
     if (invalidIds.length > 0) {
       throw new AppError(
         "Uma ou mais contas selecionadas são inválidas",
         400,
-        "invalid_instagram_accounts",
+        "invalid_social_accounts",
         { invalidIds },
       );
     }
 
-    return selectedIds;
+    return connectedAccounts.filter((account) => selectedIds.includes(account.id));
   }
 
   private resolveObjectKeys(input: ICreatePublicationInput): string[] {
@@ -128,6 +161,45 @@ export class CreateAndPublishPublicationUseCase {
     }
 
     return [];
+  }
+
+  private async resolveMediaUrls(
+    authUserId: string,
+    objectKeys: string[],
+  ): Promise<string[]> {
+    const urls: string[] = [];
+
+    for (const objectKey of objectKeys) {
+      if (objectKey.startsWith("http://") || objectKey.startsWith("https://")) {
+        urls.push(objectKey);
+        continue;
+      }
+
+      const streamResult = await this.temporaryMediaStorage.getStream(objectKey);
+      const chunks: Buffer[] = [];
+
+      for await (const chunk of streamResult.stream) {
+        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+      }
+
+      const buffer = Buffer.concat(chunks);
+      const filename = objectKey.split("/").pop() ?? "media.bin";
+      const presigned = await this.zernioMediaService.presignUpload({
+        filename,
+        contentType: streamResult.contentType,
+        size: buffer.length,
+      });
+
+      await this.zernioMediaService.uploadToPresignedUrl({
+        uploadUrl: presigned.uploadUrl,
+        buffer,
+        contentType: streamResult.contentType,
+      });
+
+      urls.push(presigned.publicUrl);
+    }
+
+    return urls;
   }
 }
 
@@ -158,11 +230,7 @@ export class ListPublicationsUseCase {
 }
 
 export class GetPublicationThumbnailUseCase {
-  constructor(
-    private readonly publicationRepository: IPublicationRepository,
-    private readonly instagramAccountRepository: IInstagramConnectedAccountRepository,
-    private readonly instagramGraphClient: IInstagramGraphService,
-  ) {}
+  constructor(private readonly publicationRepository: IPublicationRepository) {}
 
   async execute(authUserId: string, publicationId: string): Promise<string | null> {
     const publication = await this.publicationRepository.findByIdAndUserId(
@@ -175,20 +243,9 @@ export class GetPublicationThumbnailUseCase {
     }
 
     const successTarget = publication.targets.find(
-      (t) => t.instagramMediaId !== null,
+      (target) => target.platformPostUrl !== null,
     );
 
-    if (!successTarget?.instagramMediaId) return null;
-
-    const account = await this.instagramAccountRepository.findById(
-      successTarget.instagramConnectedAccountId,
-    );
-
-    if (!account) return null;
-
-    return this.instagramGraphClient.getMediaThumbnailUrl(
-      successTarget.instagramMediaId,
-      account.accessToken,
-    );
+    return successTarget?.platformPostUrl ?? publication.mediaUrl ?? null;
   }
 }

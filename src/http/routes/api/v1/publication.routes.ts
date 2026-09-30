@@ -30,11 +30,11 @@ export class PublicationRoutes extends BaseHttpRoute {
         throw new AppError("Campo 'file' é obrigatório", 400, "file_required");
       }
 
-      const { objectKey } = await uploadMedia.execute(authUserId!, file);
+      const { objectKey, publicUrl } = await uploadMedia.execute(authUserId!, file);
 
       return this.successResponse(
         "Mídia enviada com sucesso",
-        { objectKey },
+        { objectKey, publicUrl },
         201,
       );
     });
@@ -54,7 +54,7 @@ export class PublicationRoutes extends BaseHttpRoute {
         parsedBody.data,
       );
 
-      return this.successResponse("Publicação enfileirada", publication, 202);
+      return this.successResponse("Publicação enviada", publication, 202);
     });
 
     route.get("/publications/:publicationId/thumbnail", async (context) => {

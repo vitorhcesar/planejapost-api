@@ -11,6 +11,7 @@ export class UserMapper {
       emailVerified: row.emailVerified,
       image: row.image,
       role: UserMapper.toDomainRole(row.role),
+      zernioProfileId: row.zernioProfileId,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     });

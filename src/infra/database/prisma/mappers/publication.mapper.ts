@@ -11,7 +11,11 @@ import {
   PublicationStatusEnum,
   PublicationTargetStatusEnum,
   PublicationTypeEnum,
-} from "@/domain/enums/instagram.enum";
+} from "@/domain/enums/publication.enum";
+import {
+  SocialPlatformEnum,
+  isSocialPlatform,
+} from "@/domain/enums/social-platform.enum";
 
 type TPrismaPublicationWithTargets = PrismaPublication & {
   targets: PrismaPublicationTarget[];
@@ -28,17 +32,22 @@ export class PublicationMapper {
       mediaUrl: row.mediaUrl,
       objectKey: row.objectKey,
       objectKeys: row.objectKeys.length > 0 ? row.objectKeys : row.objectKey ? [row.objectKey] : [],
+      zernioPostId: row.zernioPostId,
+      idempotencyKey: row.idempotencyKey,
       status: PublicationMapper.toPublicationStatus(row.status),
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
       targets: row.targets.map((target) => ({
         id: target.id,
         publicationId: target.publicationId,
-        instagramConnectedAccountId: target.instagramConnectedAccountId,
+        socialConnectedAccountId: target.socialConnectedAccountId,
+        platform: PublicationMapper.toPlatform(target.platform),
+        zernioAccountId: target.zernioAccountId,
         status: PublicationMapper.toTargetStatus(target.status),
-        instagramMediaId: target.instagramMediaId,
-        instagramPermalink: target.instagramPermalink,
+        platformPostId: target.platformPostId,
+        platformPostUrl: target.platformPostUrl,
         errorMessage: target.errorMessage,
+        errorCode: target.errorCode,
         createdAt: target.createdAt,
         updatedAt: target.updatedAt,
       })),
@@ -56,44 +65,19 @@ export class PublicationMapper {
       mediaUrl: data.mediaUrl,
       objectKey: data.objectKey,
       objectKeys: data.objectKeys,
+      zernioPostId: data.zernioPostId,
+      idempotencyKey: data.idempotencyKey,
       status: data.status,
       targets: {
         create: data.targets.map((target) => ({
-          instagramConnectedAccountId: target.instagramConnectedAccountId,
+          socialConnectedAccountId: target.socialConnectedAccountId,
+          platform: target.platform,
+          zernioAccountId: target.zernioAccountId,
           status: target.status,
-          instagramMediaId: target.instagramMediaId,
-          instagramPermalink: target.instagramPermalink,
+          platformPostId: target.platformPostId,
+          platformPostUrl: target.platformPostUrl,
           errorMessage: target.errorMessage,
-        })),
-      },
-    };
-  }
-
-  static toPrismaUpdate(publication: Publication) {
-    const data = publication.toObject();
-
-    return {
-      status: data.status,
-      objectKey: data.objectKey,
-      objectKeys: data.objectKeys,
-      updatedAt: data.updatedAt,
-      targets: {
-        upsert: data.targets.map((target) => ({
-          where: { id: target.id || "___invalid___" },
-          create: {
-            instagramConnectedAccountId: target.instagramConnectedAccountId,
-            status: target.status,
-            instagramMediaId: target.instagramMediaId,
-            instagramPermalink: target.instagramPermalink,
-            errorMessage: target.errorMessage,
-          },
-          update: {
-            status: target.status,
-            instagramMediaId: target.instagramMediaId,
-            instagramPermalink: target.instagramPermalink,
-            errorMessage: target.errorMessage,
-            updatedAt: target.updatedAt,
-          },
+          errorCode: target.errorCode,
         })),
       },
     };
@@ -104,9 +88,22 @@ export class PublicationMapper {
 
     return {
       status: data.status,
-      instagramMediaId: data.instagramMediaId,
-      instagramPermalink: data.instagramPermalink,
+      platformPostId: data.platformPostId,
+      platformPostUrl: data.platformPostUrl,
       errorMessage: data.errorMessage,
+      errorCode: data.errorCode,
+      updatedAt: data.updatedAt,
+    };
+  }
+
+  static publicationToPrismaUpdate(publication: Publication) {
+    const data = publication.toObject();
+
+    return {
+      status: data.status,
+      zernioPostId: data.zernioPostId,
+      objectKey: data.objectKey,
+      objectKeys: data.objectKeys,
       updatedAt: data.updatedAt,
     };
   }
@@ -151,5 +148,11 @@ export class PublicationMapper {
       default:
         return PublicationTargetStatusEnum.PENDING;
     }
+  }
+
+  private static toPlatform(platform: string): SocialPlatformEnum {
+    return isSocialPlatform(platform)
+      ? platform
+      : SocialPlatformEnum.INSTAGRAM;
   }
 }

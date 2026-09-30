@@ -13,20 +13,6 @@ import { ListAdminUsersUseCase } from "@/app/usecases/admin/list-admin-users.use
 import { UpdateAdminUserRoleUseCase } from "@/app/usecases/admin/update-admin-user-role.usecase";
 import { SendEmailVerificationOtpUseCase } from "@/app/usecases/email-verification/send-email-verification-otp.usecase";
 import { VerifyEmailVerificationOtpUseCase } from "@/app/usecases/email-verification/verify-email-verification-otp.usecase";
-import {
-  CompleteInstagramConnectUseCase,
-  CreateInstagramConnectSessionUseCase,
-  DisconnectInstagramAccountUseCase,
-  ListInstagramConnectedAccountsUseCase,
-} from "@/app/usecases/instagram/instagram-connected-account.usecases";
-import { HandleInstagramMetaComplianceUseCase } from "@/app/usecases/instagram/handle-instagram-meta-compliance.usecase";
-import {
-  CreateMetaAppConfigUseCase,
-  DeleteMetaAppConfigUseCase,
-  GetMetaAppConfigUseCase,
-  ReplaceMetaAppConfigUseCase,
-  RotateMetaAppSecretUseCase,
-} from "@/app/usecases/meta-app-config/meta-app-config.usecases";
 import { ReceiveOmegaPayWebhookUseCase } from "@/app/usecases/omegapay/receive-omegapay-webhook.usecase";
 import {
   CreateAndPublishPublicationUseCase,
@@ -35,12 +21,21 @@ import {
   ListPublicationsUseCase,
 } from "@/app/usecases/publication/create-and-publish-publication.usecase";
 import { UploadPublicationMediaUseCase } from "@/app/usecases/publication/upload-publication-media.usecase";
+import {
+  CompleteSocialConnectUseCase,
+  CreateSocialConnectSessionUseCase,
+  DisconnectSocialAccountUseCase,
+  ListSocialConnectSelectionOptionsUseCase,
+  ListSocialConnectedAccountsUseCase,
+} from "@/app/usecases/social/social-connected-account.usecases";
 import { DeleteUserAccountUseCase } from "@/app/usecases/user/delete-user-account.usecase";
 import { GetAuthenticatedUserUseCase } from "@/app/usecases/user/get-authenticated-user.usecase";
 import { AdminCreditWalletUseCase } from "@/app/usecases/wallet/admin-credit-wallet.usecase";
 import { CreateWalletPixRechargeUseCase } from "@/app/usecases/wallet/create-wallet-pix-recharge.usecase";
 import { GetWalletBalanceUseCase } from "@/app/usecases/wallet/get-wallet-balance.usecase";
 import { ProcessWalletRechargeFromWebhookUseCase } from "@/app/usecases/wallet/process-wallet-recharge-from-webhook.usecase";
+import { EnsureZernioProfileUseCase } from "@/app/usecases/zernio/ensure-zernio-profile.usecase";
+import { HandleZernioWebhookUseCase } from "@/app/usecases/zernio/handle-zernio-webhook.usecase";
 import type { IInfrastructure } from "@/composition/infrastructure.module";
 import type { IRepositories } from "@/composition/repositories.module";
 
@@ -72,19 +67,16 @@ export interface IUseCases {
     purchase: PurchaseAccountSlotsUseCase;
     renew: RenewAccountSlotUseCase;
   };
-  instagram: {
-    createConnectSession: CreateInstagramConnectSessionUseCase;
-    completeConnect: CompleteInstagramConnectUseCase;
-    listConnectedAccounts: ListInstagramConnectedAccountsUseCase;
-    disconnectAccount: DisconnectInstagramAccountUseCase;
-    handleMetaCompliance: HandleInstagramMetaComplianceUseCase;
+  social: {
+    createConnectSession: CreateSocialConnectSessionUseCase;
+    completeConnect: CompleteSocialConnectUseCase;
+    listConnectedAccounts: ListSocialConnectedAccountsUseCase;
+    disconnectAccount: DisconnectSocialAccountUseCase;
+    listSelectionOptions: ListSocialConnectSelectionOptionsUseCase;
   };
-  metaAppConfig: {
-    get: GetMetaAppConfigUseCase;
-    create: CreateMetaAppConfigUseCase;
-    replace: ReplaceMetaAppConfigUseCase;
-    rotateSecret: RotateMetaAppSecretUseCase;
-    delete: DeleteMetaAppConfigUseCase;
+  zernio: {
+    ensureProfile: EnsureZernioProfileUseCase;
+    handleWebhook: HandleZernioWebhookUseCase;
   };
   omegapay: {
     receiveWebhook: ReceiveOmegaPayWebhookUseCase;
@@ -108,6 +100,11 @@ export function createUseCases(
     repositories.wallet,
   );
 
+  const ensureZernioProfile = new EnsureZernioProfileUseCase(
+    repositories.user,
+    infrastructure.zernioClient,
+  );
+
   return {
     user: {
       getAuthenticatedUser: new GetAuthenticatedUserUseCase(repositories.user),
@@ -128,18 +125,16 @@ export function createUseCases(
       list: new ListPublicationsUseCase(repositories.publication),
       uploadMedia: new UploadPublicationMediaUseCase(
         infrastructure.temporaryMediaStorage,
+        infrastructure.zernioClient,
       ),
       createAndPublish: new CreateAndPublishPublicationUseCase(
         repositories.publication,
-        repositories.instagramConnectedAccount,
-        infrastructure.publicationQueue,
-        infrastructure.publicApiConfig,
+        repositories.socialConnectedAccount,
+        infrastructure.zernioClient,
+        infrastructure.zernioClient,
+        infrastructure.temporaryMediaStorage,
       ),
-      getThumbnail: new GetPublicationThumbnailUseCase(
-        repositories.publication,
-        repositories.instagramConnectedAccount,
-        infrastructure.instagramGraphClient,
-      ),
+      getThumbnail: new GetPublicationThumbnailUseCase(repositories.publication),
       get: new GetPublicationUseCase(repositories.publication),
     },
     wallet: {
@@ -165,50 +160,44 @@ export function createUseCases(
         repositories.wallet,
       ),
     },
-    instagram: {
-      createConnectSession: new CreateInstagramConnectSessionUseCase(
-        repositories.instagramOAuthState,
-        infrastructure.instagramOAuthClientFactory,
+    social: {
+      createConnectSession: new CreateSocialConnectSessionUseCase(
+        ensureZernioProfile,
+        repositories.socialConnectSession,
+        repositories.socialConnectedAccount,
         repositories.accountSlot,
-        repositories.instagramConnectedAccount,
-        repositories.metaAppConfig,
-      ),
-      completeConnect: new CompleteInstagramConnectUseCase(
-        repositories.instagramOAuthState,
-        repositories.instagramConnectedAccount,
-        infrastructure.instagramOAuthClientFactory,
-        infrastructure.instagramGraphClient,
-        repositories.accountSlot,
-        repositories.metaAppConfig,
-      ),
-      listConnectedAccounts: new ListInstagramConnectedAccountsUseCase(
-        repositories.instagramConnectedAccount,
-      ),
-      disconnectAccount: new DisconnectInstagramAccountUseCase(
-        repositories.instagramConnectedAccount,
-        repositories.accountSlot,
-      ),
-      handleMetaCompliance: new HandleInstagramMetaComplianceUseCase(
-        repositories.instagramConnectedAccount,
-        repositories.accountSlot,
+        infrastructure.zernioClient,
         infrastructure.frontendOrigin,
       ),
+      completeConnect: new CompleteSocialConnectUseCase(
+        repositories.socialConnectSession,
+        repositories.socialConnectedAccount,
+        repositories.accountSlot,
+        infrastructure.zernioClient,
+        infrastructure.zernioClient,
+      ),
+      listConnectedAccounts: new ListSocialConnectedAccountsUseCase(
+        repositories.socialConnectedAccount,
+        repositories.accountSlot,
+      ),
+      disconnectAccount: new DisconnectSocialAccountUseCase(
+        repositories.socialConnectedAccount,
+        repositories.accountSlot,
+        infrastructure.zernioClient,
+      ),
+      listSelectionOptions: new ListSocialConnectSelectionOptionsUseCase(
+        repositories.socialConnectSession,
+        infrastructure.zernioClient,
+      ),
     },
-    metaAppConfig: {
-      get: new GetMetaAppConfigUseCase(
-        repositories.metaAppConfig,
-        infrastructure.publicApiUrl,
+    zernio: {
+      ensureProfile: ensureZernioProfile,
+      handleWebhook: new HandleZernioWebhookUseCase(
+        repositories.zernioWebhookEvent,
+        repositories.socialConnectedAccount,
+        repositories.accountSlot,
+        repositories.publication,
       ),
-      create: new CreateMetaAppConfigUseCase(
-        repositories.metaAppConfig,
-        infrastructure.metaAppRuntimeOptions,
-      ),
-      replace: new ReplaceMetaAppConfigUseCase(
-        repositories.metaAppConfig,
-        infrastructure.metaAppRuntimeOptions,
-      ),
-      rotateSecret: new RotateMetaAppSecretUseCase(repositories.metaAppConfig),
-      delete: new DeleteMetaAppConfigUseCase(repositories.metaAppConfig),
     },
     omegapay: {
       receiveWebhook: new ReceiveOmegaPayWebhookUseCase(
@@ -219,7 +208,7 @@ export function createUseCases(
     admin: {
       getDashboardMetrics: new GetAdminDashboardMetricsUseCase(
         repositories.user,
-        repositories.instagramConnectedAccount,
+        repositories.socialConnectedAccount,
         repositories.publication,
       ),
       getBillingMetrics: new GetAdminBillingMetricsUseCase(

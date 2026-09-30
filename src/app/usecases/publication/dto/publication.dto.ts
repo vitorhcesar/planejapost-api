@@ -1,10 +1,13 @@
 export interface IPublicationTargetDto {
   id: string;
-  instagramConnectedAccountId: string;
+  socialConnectedAccountId: string;
+  platform: string;
+  zernioAccountId: string;
   status: string;
-  instagramMediaId: string | null;
-  instagramPermalink: string | null;
+  platformPostId: string | null;
+  platformPostUrl: string | null;
   errorMessage: string | null;
+  errorCode: string | null;
 }
 
 export interface IPublicationDto {
@@ -14,6 +17,7 @@ export interface IPublicationDto {
   caption: string | null;
   mediaUrl: string;
   mediaUrls: string[];
+  zernioPostId: string | null;
   status: string;
   targets: IPublicationTargetDto[];
   createdAt: string;

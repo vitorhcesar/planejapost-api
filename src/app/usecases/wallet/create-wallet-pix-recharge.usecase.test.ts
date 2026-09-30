@@ -204,6 +204,7 @@ describe("CreateWalletPixRechargeUseCase", () => {
         emailVerified: true,
         image: null,
         role: "client" as never,
+        zernioProfileId: null,
         createdAt: new Date(),
         updatedAt: new Date(),
       }),

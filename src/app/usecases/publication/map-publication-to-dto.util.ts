@@ -9,14 +9,10 @@ export function mapPublicationToDto(publication: Publication): IPublicationDto {
       ? [data.objectKey]
       : [];
 
-  const objectsPath = "/public/objects/";
-  const objectsPathIndex = data.mediaUrl.indexOf(objectsPath);
   const mediaUrls =
-    objectKeys.length > 0 && objectsPathIndex >= 0
-      ? objectKeys.map((objectKey) => {
-          const base = data.mediaUrl.slice(0, objectsPathIndex + objectsPath.length);
-          return `${base}${objectKey}`;
-        })
+    objectKeys.length > 0 &&
+    (objectKeys[0]?.startsWith("http://") || objectKeys[0]?.startsWith("https://"))
+      ? objectKeys
       : [data.mediaUrl];
 
   return {
@@ -26,14 +22,18 @@ export function mapPublicationToDto(publication: Publication): IPublicationDto {
     caption: data.caption,
     mediaUrl: data.mediaUrl,
     mediaUrls,
+    zernioPostId: data.zernioPostId,
     status: data.status,
     targets: data.targets.map((target) => ({
       id: target.id,
-      instagramConnectedAccountId: target.instagramConnectedAccountId,
+      socialConnectedAccountId: target.socialConnectedAccountId,
+      platform: target.platform,
+      zernioAccountId: target.zernioAccountId,
       status: target.status,
-      instagramMediaId: target.instagramMediaId,
-      instagramPermalink: target.instagramPermalink,
+      platformPostId: target.platformPostId,
+      platformPostUrl: target.platformPostUrl,
       errorMessage: target.errorMessage,
+      errorCode: target.errorCode,
     })),
     createdAt: data.createdAt.toISOString(),
     updatedAt: data.updatedAt.toISOString(),

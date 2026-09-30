@@ -3,16 +3,21 @@ import {
   PublicationStatusEnum,
   PublicationTargetStatusEnum,
   PublicationTypeEnum,
-} from "@/domain/enums/instagram.enum";
+} from "@/domain/enums/publication.enum";
+import type { SocialPlatformEnum } from "@/domain/enums/social-platform.enum";
+import { randomUUID } from "node:crypto";
 
 export interface IPublicationTargetProps {
   id: string;
   publicationId: string;
-  instagramConnectedAccountId: string;
+  socialConnectedAccountId: string;
+  platform: SocialPlatformEnum;
+  zernioAccountId: string;
   status: PublicationTargetStatusEnum;
-  instagramMediaId: string | null;
-  instagramPermalink: string | null;
+  platformPostId: string | null;
+  platformPostUrl: string | null;
   errorMessage: string | null;
+  errorCode: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -26,10 +31,18 @@ export interface IPublicationProps {
   mediaUrl: string;
   objectKey: string | null;
   objectKeys: string[];
+  zernioPostId: string | null;
+  idempotencyKey: string;
   status: PublicationStatusEnum;
   createdAt: Date;
   updatedAt: Date;
   targets: IPublicationTargetProps[];
+}
+
+export interface IPublicationTargetCreateInput {
+  socialConnectedAccountId: string;
+  platform: SocialPlatformEnum;
+  zernioAccountId: string;
 }
 
 export interface IPublicationCreateProps {
@@ -40,7 +53,7 @@ export interface IPublicationCreateProps {
   mediaUrl: string;
   objectKey: string | null;
   objectKeys: string[];
-  instagramConnectedAccountIds: string[];
+  targets: IPublicationTargetCreateInput[];
 }
 
 export class PublicationTarget {
@@ -50,20 +63,25 @@ export class PublicationTarget {
     this.props = props;
   }
 
-  static create(props: {
+  static create(input: {
     publicationId: string;
-    instagramConnectedAccountId: string;
+    socialConnectedAccountId: string;
+    platform: SocialPlatformEnum;
+    zernioAccountId: string;
   }): PublicationTarget {
     const now = new Date();
 
     return new PublicationTarget({
       id: "",
-      publicationId: props.publicationId,
-      instagramConnectedAccountId: props.instagramConnectedAccountId,
+      publicationId: input.publicationId,
+      socialConnectedAccountId: input.socialConnectedAccountId,
+      platform: input.platform,
+      zernioAccountId: input.zernioAccountId,
       status: PublicationTargetStatusEnum.PENDING,
-      instagramMediaId: null,
-      instagramPermalink: null,
+      platformPostId: null,
+      platformPostUrl: null,
       errorMessage: null,
+      errorCode: null,
       createdAt: now,
       updatedAt: now,
     });
@@ -81,24 +99,36 @@ export class PublicationTarget {
     return this.props.publicationId;
   }
 
-  get instagramConnectedAccountId(): string {
-    return this.props.instagramConnectedAccountId;
+  get socialConnectedAccountId(): string {
+    return this.props.socialConnectedAccountId;
+  }
+
+  get platform(): SocialPlatformEnum {
+    return this.props.platform;
+  }
+
+  get zernioAccountId(): string {
+    return this.props.zernioAccountId;
   }
 
   get status(): PublicationTargetStatusEnum {
     return this.props.status;
   }
 
-  get instagramMediaId(): string | null {
-    return this.props.instagramMediaId;
+  get platformPostId(): string | null {
+    return this.props.platformPostId;
   }
 
-  get instagramPermalink(): string | null {
-    return this.props.instagramPermalink;
+  get platformPostUrl(): string | null {
+    return this.props.platformPostUrl;
   }
 
   get errorMessage(): string | null {
     return this.props.errorMessage;
+  }
+
+  get errorCode(): string | null {
+    return this.props.errorCode;
   }
 
   markAsProcessing(): void {
@@ -106,17 +136,19 @@ export class PublicationTarget {
     this.props.updatedAt = new Date();
   }
 
-  markAsSuccess(instagramMediaId: string, instagramPermalink: string | null): void {
+  markAsSuccess(platformPostId: string, platformPostUrl: string | null): void {
     this.props.status = PublicationTargetStatusEnum.SUCCESS;
-    this.props.instagramMediaId = instagramMediaId;
-    this.props.instagramPermalink = instagramPermalink;
+    this.props.platformPostId = platformPostId;
+    this.props.platformPostUrl = platformPostUrl;
     this.props.errorMessage = null;
+    this.props.errorCode = null;
     this.props.updatedAt = new Date();
   }
 
-  markAsFailed(errorMessage: string): void {
+  markAsFailed(errorMessage: string, errorCode?: string | null): void {
     this.props.status = PublicationTargetStatusEnum.FAILED;
     this.props.errorMessage = errorMessage;
+    this.props.errorCode = errorCode ?? null;
     this.props.updatedAt = new Date();
   }
 
@@ -135,11 +167,14 @@ export class Publication {
   static create(props: IPublicationCreateProps): Publication {
     const now = new Date();
     const publicationId = "";
+    const idempotencyKey = randomUUID();
 
-    const targets = props.instagramConnectedAccountIds.map((accountId) =>
+    const targets = props.targets.map((target) =>
       PublicationTarget.create({
         publicationId,
-        instagramConnectedAccountId: accountId,
+        socialConnectedAccountId: target.socialConnectedAccountId,
+        platform: target.platform,
+        zernioAccountId: target.zernioAccountId,
       }),
     );
 
@@ -152,6 +187,8 @@ export class Publication {
       mediaUrl: props.mediaUrl,
       objectKey: props.objectKey,
       objectKeys: props.objectKeys,
+      zernioPostId: null,
+      idempotencyKey,
       status: PublicationStatusEnum.PENDING,
       createdAt: now,
       updatedAt: now,
@@ -199,6 +236,14 @@ export class Publication {
     return this.props.objectKey ? [this.props.objectKey] : [];
   }
 
+  get zernioPostId(): string | null {
+    return this.props.zernioPostId;
+  }
+
+  get idempotencyKey(): string {
+    return this.props.idempotencyKey;
+  }
+
   get status(): PublicationStatusEnum {
     return this.props.status;
   }
@@ -213,6 +258,12 @@ export class Publication {
 
   markAsProcessing(): void {
     this.props.status = PublicationStatusEnum.PROCESSING;
+    this.props.updatedAt = new Date();
+    this.markAllTargetsAsProcessing();
+  }
+
+  setZernioPostId(zernioPostId: string): void {
+    this.props.zernioPostId = zernioPostId;
     this.props.updatedAt = new Date();
   }
 
@@ -229,16 +280,15 @@ export class Publication {
       this.props.status = PublicationStatusEnum.COMPLETED;
     } else if (successCount > 0 && failedCount > 0) {
       this.props.status = PublicationStatusEnum.PARTIAL_FAILURE;
-    } else {
+    } else if (failedCount === targets.length) {
       this.props.status = PublicationStatusEnum.FAILED;
     }
 
     this.props.updatedAt = new Date();
   }
 
-  clearObjectKey(): void {
-    this.props.objectKey = null;
-    this.props.objectKeys = [];
+  applyAggregateStatus(status: PublicationStatusEnum): void {
+    this.props.status = status;
     this.props.updatedAt = new Date();
   }
 
@@ -253,6 +303,14 @@ export class Publication {
     this.props.targets = this.props.targets.map((target) => ({
       ...target,
       publicationId: id,
+    }));
+  }
+
+  private markAllTargetsAsProcessing(): void {
+    this.props.targets = this.props.targets.map((target) => ({
+      ...target,
+      status: PublicationTargetStatusEnum.PROCESSING,
+      updatedAt: new Date(),
     }));
   }
 

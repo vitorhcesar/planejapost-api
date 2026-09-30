@@ -5,6 +5,7 @@ import type {
   ITemporaryPublicationMediaStorage,
   IUploadTemporaryMediaInput,
 } from "@/domain/storages/temporary-publication-media.storage";
+import type { IZernioMediaService } from "@/domain/zernio/zernio-media.service";
 
 class InMemoryTemporaryMediaStorage {
   uploads: IUploadTemporaryMediaInput[] = [];
@@ -21,6 +22,28 @@ class InMemoryTemporaryMediaStorage {
 
   buildObjectKey(userId: string, originalFilename: string) {
     return `temp/${userId}/${originalFilename}`;
+  }
+}
+
+class MockZernioMediaService implements IZernioMediaService {
+  uploads: Array<{ uploadUrl: string; contentType: string }> = [];
+
+  async presignUpload() {
+    return {
+      uploadUrl: "https://upload.example.com/file",
+      publicUrl: "https://media.example.com/file.jpg",
+    };
+  }
+
+  async uploadToPresignedUrl(input: {
+    uploadUrl: string;
+    buffer: Buffer;
+    contentType: string;
+  }) {
+    this.uploads.push({
+      uploadUrl: input.uploadUrl,
+      contentType: input.contentType,
+    });
   }
 }
 
@@ -48,6 +71,7 @@ describe("UploadPublicationMediaUseCase", () => {
     const storage = new InMemoryTemporaryMediaStorage();
     const useCase = new UploadPublicationMediaUseCase(
       storage as unknown as ITemporaryPublicationMediaStorage,
+      new MockZernioMediaService(),
     );
 
     try {
@@ -70,6 +94,7 @@ describe("UploadPublicationMediaUseCase", () => {
     const storage = new InMemoryTemporaryMediaStorage();
     const useCase = new UploadPublicationMediaUseCase(
       storage as unknown as ITemporaryPublicationMediaStorage,
+      new MockZernioMediaService(),
     );
 
     try {
@@ -88,10 +113,12 @@ describe("UploadPublicationMediaUseCase", () => {
     }
   });
 
-  it("uploads valid media and returns the object key", async () => {
+  it("uploads valid media and returns object key and public url", async () => {
     const storage = new InMemoryTemporaryMediaStorage();
+    const zernioMedia = new MockZernioMediaService();
     const useCase = new UploadPublicationMediaUseCase(
       storage as unknown as ITemporaryPublicationMediaStorage,
+      zernioMedia,
     );
 
     const result = await useCase.execute(
@@ -104,7 +131,8 @@ describe("UploadPublicationMediaUseCase", () => {
     );
 
     expect(result.objectKey).toBe("temp/user-1/photo.jpg");
+    expect(result.publicUrl).toBe("https://media.example.com/file.jpg");
     expect(storage.uploads).toHaveLength(1);
-    expect(storage.uploads[0]?.contentType).toBe("image/jpeg");
+    expect(zernioMedia.uploads).toHaveLength(1);
   });
 });

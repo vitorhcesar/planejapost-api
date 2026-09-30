@@ -9,7 +9,7 @@ import { BasePrismaRepository } from "@/infra/database/prisma/repositories/base-
 function mapSlot(row: {
   id: string;
   userId: string;
-  instagramConnectedAccountId: string | null;
+  socialConnectedAccountId: string | null;
   status: string;
   expiresAt: Date;
   createdAt: Date;
@@ -18,7 +18,7 @@ function mapSlot(row: {
   return {
     id: row.id,
     userId: row.userId,
-    instagramConnectedAccountId: row.instagramConnectedAccountId,
+    socialConnectedAccountId: row.socialConnectedAccountId,
     status: row.status as AccountSlotStatusEnum,
     expiresAt: row.expiresAt,
     createdAt: row.createdAt,
@@ -42,15 +42,16 @@ export class PrismaAccountSlotRepository
     const rows = await this.getPrismaClient().accountSlot.findMany({
       where: { userId },
       include: {
-        instagramConnectedAccount: {
+        socialConnectedAccount: {
           select: {
             id: true,
+            platform: true,
             username: true,
             displayName: true,
-            profilePictureUrl: true,
+            avatarUrl: true,
             status: true,
-            tokenExpiresAt: true,
-            integrationSource: true,
+            canPost: true,
+            needsReconnect: true,
           },
         },
       },
@@ -59,28 +60,26 @@ export class PrismaAccountSlotRepository
 
     return rows.map((row) => ({
       ...mapSlot(row),
-      instagramAccount: row.instagramConnectedAccount
+      socialAccount: row.socialConnectedAccount
         ? {
-            id: row.instagramConnectedAccount.id,
-            username: row.instagramConnectedAccount.username,
-            displayName: row.instagramConnectedAccount.displayName,
-            profilePictureUrl: row.instagramConnectedAccount.profilePictureUrl,
-            status: row.instagramConnectedAccount.status,
-            tokenExpiresAt: row.instagramConnectedAccount.tokenExpiresAt,
-            integrationSource:
-              row.instagramConnectedAccount.integrationSource === "user_meta_app"
-                ? "user_meta_app"
-                : "legacy_project_app",
+            id: row.socialConnectedAccount.id,
+            platform: row.socialConnectedAccount.platform,
+            username: row.socialConnectedAccount.username,
+            displayName: row.socialConnectedAccount.displayName,
+            avatarUrl: row.socialConnectedAccount.avatarUrl,
+            status: row.socialConnectedAccount.status,
+            canPost: row.socialConnectedAccount.canPost,
+            needsReconnect: row.socialConnectedAccount.needsReconnect,
           }
         : null,
     }));
   }
 
-  async findByInstagramConnectedAccountId(
+  async findBySocialConnectedAccountId(
     accountId: string,
   ): Promise<IAccountSlot | null> {
     const row = await this.getPrismaClient().accountSlot.findFirst({
-      where: { instagramConnectedAccountId: accountId },
+      where: { socialConnectedAccountId: accountId },
     });
 
     return row ? mapSlot(row) : null;
@@ -113,7 +112,7 @@ export class PrismaAccountSlotRepository
   async assignAccount(slotId: string, accountId: string): Promise<IAccountSlot> {
     const row = await this.getPrismaClient().accountSlot.update({
       where: { id: slotId },
-      data: { instagramConnectedAccountId: accountId },
+      data: { socialConnectedAccountId: accountId },
     });
 
     return mapSlot(row);
@@ -121,8 +120,8 @@ export class PrismaAccountSlotRepository
 
   async releaseAccount(accountId: string): Promise<void> {
     await this.getPrismaClient().accountSlot.updateMany({
-      where: { instagramConnectedAccountId: accountId },
-      data: { instagramConnectedAccountId: null },
+      where: { socialConnectedAccountId: accountId },
+      data: { socialConnectedAccountId: null },
     });
   }
 

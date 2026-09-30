@@ -9,13 +9,11 @@ const envSchema = z.object({
   BETTER_AUTH_SECRET: z.string().min(32),
   BETTER_AUTH_URL: z.string().url(),
   CORS_ORIGIN: z.string().min(1),
-  INSTAGRAM_REDIRECT_URI: z.string().url().optional(),
-  INSTAGRAM_OAUTH_SCOPES: z
-    .string()
-    .min(1)
-    .default("instagram_business_basic,instagram_business_content_publish"),
-  INSTAGRAM_TOKEN_ENCRYPTION_KEY: z.string().min(32).optional(),
-  META_APP_CONFIG_ENCRYPTION_KEY: z.string().min(32).optional(),
+  ZERNIO_API_KEY: z.string().min(1).optional(),
+  ZERNIO_WEBHOOK_SECRET: z.string().min(1).optional(),
+  ZERNIO_API_BASE_URL: z.string().url().default("https://zernio.com/api/v1"),
+  USE_NGROK: z.enum(["true", "false"]).optional(),
+  NGROK_AUTHTOKEN: z.string().min(1).optional(),
   PUBLIC_API_URL: z.string().url(),
   MINIO_ENDPOINT: z.string().min(1).default("localhost"),
   MINIO_PORT: z.coerce.number().int().positive().default(9000),
@@ -48,12 +46,7 @@ export class EnvService {
   private readonly env: TEnv;
 
   private constructor() {
-    this.env = envSchema.parse({
-      ...process.env,
-      INSTAGRAM_OAUTH_SCOPES:
-        process.env.INSTAGRAM_OAUTH_SCOPES ??
-        "instagram_business_basic,instagram_business_content_publish",
-    });
+    this.env = envSchema.parse(process.env);
   }
 
   static getInstance(): EnvService {
@@ -88,32 +81,40 @@ export class EnvService {
     return this.env.CORS_ORIGIN;
   }
 
-  get instagramRedirectUri(): string {
-    if (!this.env.INSTAGRAM_REDIRECT_URI) {
-      throw new Error("INSTAGRAM_REDIRECT_URI não configurado");
+  get zernioApiKey(): string {
+    if (!this.env.ZERNIO_API_KEY) {
+      throw new Error("ZERNIO_API_KEY não configurada");
     }
 
-    return this.env.INSTAGRAM_REDIRECT_URI;
+    return this.env.ZERNIO_API_KEY;
   }
 
-  get instagramOAuthScopes(): string {
-    return this.env.INSTAGRAM_OAUTH_SCOPES;
-  }
-
-  get instagramTokenEncryptionKey(): string {
-    return this.env.INSTAGRAM_TOKEN_ENCRYPTION_KEY ?? this.env.BETTER_AUTH_SECRET;
-  }
-
-  get metaAppConfigEncryptionKey(): string {
-    if (!this.env.META_APP_CONFIG_ENCRYPTION_KEY) {
-      throw new Error("META_APP_CONFIG_ENCRYPTION_KEY não configurada");
+  get zernioWebhookSecret(): string {
+    if (!this.env.ZERNIO_WEBHOOK_SECRET) {
+      throw new Error("ZERNIO_WEBHOOK_SECRET não configurado");
     }
 
-    return this.env.META_APP_CONFIG_ENCRYPTION_KEY;
+    return this.env.ZERNIO_WEBHOOK_SECRET;
+  }
+
+  get zernioApiBaseUrl(): string {
+    return this.env.ZERNIO_API_BASE_URL;
   }
 
   get isDevelopment(): boolean {
     return this.env.NODE_ENV === "development";
+  }
+
+  get isTest(): boolean {
+    return this.env.NODE_ENV === "test";
+  }
+
+  get useNgrok(): boolean {
+    return this.env.USE_NGROK === "true";
+  }
+
+  get ngrokAuthtoken(): string | undefined {
+    return this.env.NGROK_AUTHTOKEN;
   }
 
   get publicApiUrl(): string {

@@ -1,16 +1,20 @@
+import { Readable } from "node:stream";
 import { describe, expect, it } from "bun:test";
 import { CreateAndPublishPublicationUseCase } from "@/app/usecases/publication/create-and-publish-publication.usecase";
-import { InstagramConnectedAccount } from "@/domain/entities/instagram-connected-account.entity";
+import { SocialConnectedAccount } from "@/domain/entities/social-connected-account.entity";
 import { Publication } from "@/domain/entities/publication.entity";
 import {
   PublicationDestinationScopeEnum,
   PublicationTypeEnum,
-} from "@/domain/enums/instagram.enum";
+} from "@/domain/enums/publication.enum";
+import { SocialAccountStatusEnum } from "@/domain/enums/social-account.enum";
+import { SocialPlatformEnum } from "@/domain/enums/social-platform.enum";
 import { AppError } from "@/domain/errors/app.error";
-import type { IPublicApiConfig } from "@/domain/config/public-api.config";
-import type { IPublicationQueue } from "@/domain/queue/publication-queue";
-import type { IInstagramConnectedAccountRepository } from "@/domain/repositories/instagram-connected-account.repository";
+import type { ISocialConnectedAccountRepository } from "@/domain/repositories/social-connected-account.repository";
 import type { IPublicationRepository } from "@/domain/repositories/publication.repository";
+import type { IZernioMediaService } from "@/domain/zernio/zernio-media.service";
+import type { IZernioPostService } from "@/domain/zernio/zernio-post.service";
+import type { ITemporaryPublicationMediaStorage } from "@/domain/storages/temporary-publication-media.storage";
 
 class InMemoryPublicationRepository implements IPublicationRepository {
   publications: Publication[] = [];
@@ -25,6 +29,10 @@ class InMemoryPublicationRepository implements IPublicationRepository {
         (item) => item.id === id && item.toObject().userId === userId,
       ) ?? null
     );
+  }
+
+  async findByZernioPostId() {
+    return null;
   }
 
   async findAllByUserId(userId: string) {
@@ -52,27 +60,44 @@ class InMemoryPublicationRepository implements IPublicationRepository {
   }
 }
 
-class InMemoryInstagramAccountRepository {
-  accounts: InstagramConnectedAccount[] = [];
-
-  async findByUserId(userId: string) {
-    return this.accounts.filter((account) => account.userId === userId);
-  }
+class InMemorySocialAccountRepository implements ISocialConnectedAccountRepository {
+  accounts: SocialConnectedAccount[] = [];
 
   async findById(id: string) {
     return this.accounts.find((account) => account.id === id) ?? null;
   }
 
-  async findByInstagramUserId() {
+  async findByIdAndUserId(id: string, userId: string) {
+    return (
+      this.accounts.find((account) => account.id === id && account.userId === userId) ??
+      null
+    );
+  }
+
+  async findByUserId(userId: string) {
+    return this.accounts.filter((account) => account.userId === userId);
+  }
+
+  async findByUserIdAndZernioAccountId() {
     return null;
   }
 
-  async save(account: InstagramConnectedAccount) {
+  async findByZernioAccountId() {
+    return null;
+  }
+
+  async findConnectedByUserId(userId: string) {
+    return this.accounts.filter(
+      (account) => account.userId === userId && account.isConnected(),
+    );
+  }
+
+  async save(account: SocialConnectedAccount) {
     const saved = account.id
       ? account
-      : InstagramConnectedAccount.restore({
+      : SocialConnectedAccount.restore({
           ...account.toObject(),
-          id: `ig-${this.accounts.length + 1}`,
+          id: `social-${this.accounts.length + 1}`,
         });
     this.accounts = [
       ...this.accounts.filter((item) => item.id !== saved.id),
@@ -81,53 +106,89 @@ class InMemoryInstagramAccountRepository {
     return saved;
   }
 
-  async delete() {}
-
   async countAll() {
+    return this.accounts.length;
+  }
+
+  async countByStatus() {
     return this.accounts.length;
   }
 }
 
-class InMemoryPublicationQueue implements IPublicationQueue {
-  enqueued: string[] = [];
+class MockZernioPostService implements IZernioPostService {
+  calls: unknown[] = [];
 
-  async enqueue(publicationId: string) {
-    this.enqueued.push(publicationId);
+  async createPost(input: Parameters<IZernioPostService["createPost"]>[0]) {
+    this.calls.push(input);
+    return { postId: "zernio-post-1", status: "publishing" };
+  }
+
+  async getPost() {
+    return null;
+  }
+
+  async cancelPost() {}
+}
+
+class MockZernioMediaService implements IZernioMediaService {
+  async presignUpload() {
+    return {
+      uploadUrl: "https://upload.example.com",
+      publicUrl: "https://media.example.com/file.jpg",
+    };
+  }
+
+  async uploadToPresignedUrl() {}
+}
+
+class MockTemporaryMediaStorage implements ITemporaryPublicationMediaStorage {
+  async upload() {}
+
+  async getStream(objectKey: string) {
+    return {
+      stream: Readable.from([Buffer.from("image-data")]),
+      contentType: "image/jpeg",
+      size: 10,
+    };
+  }
+
+  async delete() {}
+
+  buildObjectKey(userId: string, originalFilename: string) {
+    return `temp/${userId}/${originalFilename}`;
   }
 }
 
-const publicApiConfig: IPublicApiConfig = {
-  publicApiUrl: "https://api.example.com",
-};
-
 function createConnectedAccount(userId: string) {
-  const now = new Date(Date.now() + 60_000);
-
-  return InstagramConnectedAccount.restore({
-    id: "ig-1",
+  return SocialConnectedAccount.restore({
+    id: "social-1",
     userId,
-    instagramUserId: "instagram-user-1",
+    accountSlotId: "slot-1",
+    platform: SocialPlatformEnum.INSTAGRAM,
+    zernioAccountId: "zernio-acc-1",
+    zernioProfileId: "zernio-profile-1",
     username: "jane",
     displayName: "Jane",
-    profilePictureUrl: null,
-    accessToken: "token",
-    tokenExpiresAt: now,
-    scopes: ["instagram_business_basic"],
-    status: "connected" as never,
-    integrationSource: "user_meta_app",
-    metaAppConfigId: "meta-1",
+    avatarUrl: null,
+    status: SocialAccountStatusEnum.CONNECTED,
+    canPost: true,
+    needsReconnect: false,
+    permissions: null,
+    connectedAt: new Date(),
+    disconnectedAt: null,
     createdAt: new Date(),
     updatedAt: new Date(),
   });
 }
 
 describe("CreateAndPublishPublicationUseCase", () => {
-  it("fails when there are no connected instagram accounts", async () => {
+  it("fails when there are no connected social accounts", async () => {
     const useCase = new CreateAndPublishPublicationUseCase(
       new InMemoryPublicationRepository(),
-      new InMemoryInstagramAccountRepository() as unknown as IInstagramConnectedAccountRepository,
-      new InMemoryPublicationQueue(),
-      publicApiConfig,
+      new InMemorySocialAccountRepository(),
+      new MockZernioPostService(),
+      new MockZernioMediaService(),
+      new MockTemporaryMediaStorage(),
     );
 
     try {
@@ -139,19 +200,20 @@ describe("CreateAndPublishPublicationUseCase", () => {
       throw new Error("Expected publication to fail");
     } catch (error) {
       expect(error).toBeInstanceOf(AppError);
-      expect((error as AppError).code).toBe("no_instagram_accounts_available");
+      expect((error as AppError).code).toBe("no_social_accounts_available");
     }
   });
 
   it("fails when media is missing", async () => {
-    const instagramRepositoryImpl = new InMemoryInstagramAccountRepository();
-    instagramRepositoryImpl.accounts = [createConnectedAccount("user-1")];
+    const socialRepository = new InMemorySocialAccountRepository();
+    socialRepository.accounts = [createConnectedAccount("user-1")];
 
     const useCase = new CreateAndPublishPublicationUseCase(
       new InMemoryPublicationRepository(),
-      instagramRepositoryImpl as unknown as IInstagramConnectedAccountRepository,
-      new InMemoryPublicationQueue(),
-      publicApiConfig,
+      socialRepository,
+      new MockZernioPostService(),
+      new MockZernioMediaService(),
+      new MockTemporaryMediaStorage(),
     );
 
     try {
@@ -166,17 +228,18 @@ describe("CreateAndPublishPublicationUseCase", () => {
     }
   });
 
-  it("saves and enqueues a publication with media", async () => {
+  it("creates and publishes via Zernio", async () => {
     const publicationRepository = new InMemoryPublicationRepository();
-    const instagramRepositoryImpl = new InMemoryInstagramAccountRepository();
-    const queue = new InMemoryPublicationQueue();
-    instagramRepositoryImpl.accounts = [createConnectedAccount("user-1")];
+    const socialRepository = new InMemorySocialAccountRepository();
+    const zernioPostService = new MockZernioPostService();
+    socialRepository.accounts = [createConnectedAccount("user-1")];
 
     const useCase = new CreateAndPublishPublicationUseCase(
       publicationRepository,
-      instagramRepositoryImpl as unknown as IInstagramConnectedAccountRepository,
-      queue,
-      publicApiConfig,
+      socialRepository,
+      zernioPostService,
+      new MockZernioMediaService(),
+      new MockTemporaryMediaStorage(),
     );
 
     const result = await useCase.execute("user-1", {
@@ -187,7 +250,8 @@ describe("CreateAndPublishPublicationUseCase", () => {
     });
 
     expect(result.id).toBe("pub-1");
-    expect(queue.enqueued).toEqual(["pub-1"]);
+    expect(result.zernioPostId).toBe("zernio-post-1");
+    expect(zernioPostService.calls).toHaveLength(1);
     expect(publicationRepository.publications).toHaveLength(1);
   });
 });

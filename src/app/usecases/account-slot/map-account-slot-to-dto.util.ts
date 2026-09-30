@@ -4,27 +4,19 @@ import type {
   IAccountSlotAccountDto,
   IAccountSlotDto,
 } from "@/app/usecases/account-slot/dto/account-slot.dto";
-import { getInstagramAccountConnectionHealth } from "@/domain/instagram/instagram-account-health.util";
 
-function mapInstagramAccountToDto(
-  account: NonNullable<IAccountSlotWithAccount["instagramAccount"]>,
+function mapSocialAccountToDto(
+  account: NonNullable<IAccountSlotWithAccount["socialAccount"]>,
 ): IAccountSlotAccountDto {
-  const health = getInstagramAccountConnectionHealth({
-    status: account.status,
-    tokenExpiresAt: account.tokenExpiresAt,
-  });
-
   return {
     id: account.id,
+    platform: account.platform,
     username: account.username,
     displayName: account.displayName,
-    profilePictureUrl: account.profilePictureUrl,
+    avatarUrl: account.avatarUrl,
     status: account.status,
-    tokenExpiresAt: account.tokenExpiresAt.toISOString(),
-    isTokenExpired: health.isTokenExpired,
-    hasConnectionIssue: health.hasConnectionIssue,
-    issueType: health.issueType,
-    integrationSource: account.integrationSource,
+    canPost: account.canPost,
+    needsReconnect: account.needsReconnect,
   };
 }
 
@@ -38,8 +30,8 @@ export function mapAccountSlotToDto(slot: IAccountSlotWithAccount): IAccountSlot
     status: isExpired ? AccountSlotStatusEnum.EXPIRED : slot.status,
     expiresAt: slot.expiresAt.toISOString(),
     isExpired,
-    instagramAccount: slot.instagramAccount
-      ? mapInstagramAccountToDto(slot.instagramAccount)
+    socialAccount: slot.socialAccount
+      ? mapSocialAccountToDto(slot.socialAccount)
       : null,
     createdAt: slot.createdAt.toISOString(),
   };

@@ -21,6 +21,3 @@ export const purchaseAccountSlotsBodySchema = z
     { message: "Informe quantity ou combo" },
   );
 
-export const instagramConnectQuerySchema = z.object({
-  slotId: z.string().min(1),
-});

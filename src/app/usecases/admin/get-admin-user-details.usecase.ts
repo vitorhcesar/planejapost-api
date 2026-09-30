@@ -17,14 +17,14 @@ export class GetAdminUserDetailsUseCase {
       throw new AppError("Usuário não encontrado", 404, "user_not_found");
     }
 
-    const [instagramAccountsCount, wallet] = await Promise.all([
-      this.userRepository.countInstagramAccountsByUserId(userId),
+    const [socialAccountsCount, wallet] = await Promise.all([
+      this.userRepository.countSocialAccountsByUserId(userId),
       this.walletRepository.getOrCreateByUserId(userId),
     ]);
 
     return {
       ...mapUserToDto(user),
-      instagramAccountsCount,
+      socialAccountsCount,
       walletBalance: wallet.balance,
     };
   }

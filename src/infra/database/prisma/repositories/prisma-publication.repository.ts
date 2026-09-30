@@ -28,6 +28,15 @@ export class PrismaPublicationRepository
     return row ? PublicationMapper.toDomain(row) : null;
   }
 
+  async findByZernioPostId(zernioPostId: string): Promise<Publication | null> {
+    const row = await this.getPrismaClient().publication.findUnique({
+      where: { zernioPostId },
+      include: { targets: true },
+    });
+
+    return row ? PublicationMapper.toDomain(row) : null;
+  }
+
   async findAllByUserId(userId: string): Promise<Publication[]> {
     const rows = await this.getPrismaClient().publication.findMany({
       where: { userId },
@@ -44,12 +53,7 @@ export class PrismaPublicationRepository
 
       await this.getPrismaClient().publication.update({
         where: { id: publication.id },
-        data: {
-          status: data.status,
-          objectKey: data.objectKey,
-          objectKeys: data.objectKeys,
-          updatedAt: data.updatedAt,
-        },
+        data: PublicationMapper.publicationToPrismaUpdate(publication),
       });
 
       for (const target of publication.targets) {

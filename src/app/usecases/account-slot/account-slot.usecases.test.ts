@@ -30,7 +30,7 @@ class InMemoryAccountSlotRepository implements IAccountSlotRepository {
     return this.slots.filter((slot) => slot.userId === userId);
   }
 
-  async findByInstagramConnectedAccountId() {
+  async findBySocialConnectedAccountId() {
     return null;
   }
 
@@ -38,12 +38,12 @@ class InMemoryAccountSlotRepository implements IAccountSlotRepository {
     const created = slots.map((slot, index) => ({
       id: `slot-${this.slots.length + index + 1}`,
       userId,
-      instagramConnectedAccountId: null,
+      socialConnectedAccountId: null,
       status: AccountSlotStatusEnum.ACTIVE,
       expiresAt: slot.expiresAt,
       createdAt: new Date(),
       updatedAt: new Date(),
-      instagramAccount: null,
+      socialAccount: null,
     }));
     this.slots.push(...created);
     return created;
@@ -56,7 +56,7 @@ class InMemoryAccountSlotRepository implements IAccountSlotRepository {
       throw new Error("Slot not found");
     }
 
-    slot.instagramConnectedAccountId = accountId;
+    slot.socialConnectedAccountId = accountId;
     return slot;
   }
 
@@ -162,12 +162,12 @@ describe("Account slot use cases", () => {
       {
         id: "slot-1",
         userId: "user-1",
-        instagramConnectedAccountId: null,
+        socialConnectedAccountId: null,
         status: AccountSlotStatusEnum.EXPIRED,
         expiresAt: new Date("2020-01-01T00:00:00.000Z"),
         createdAt: new Date(),
         updatedAt: new Date(),
-        instagramAccount: null,
+        socialAccount: null,
       },
     ];
 

@@ -1,6 +1,6 @@
 export interface IAdminDashboardMetricsDto {
   totalUsers: number;
-  totalInstagramAccounts: number;
+  totalSocialAccounts: number;
   totalPosts: number;
   totalStories: number;
 }

@@ -9,21 +9,22 @@ datasource db {
 }
 
 model User {
-  id                         String                      @id
-  name                       String
-  email                      String
-  emailVerified              Boolean                     @default(false)
-  image                      String?
-  role                       String                      @default("client")
-  createdAt                  DateTime                    @default(now())
-  updatedAt                  DateTime                    @updatedAt
-  sessions                   Session[]
-  accounts                   Account[]
-  instagramConnectedAccounts InstagramConnectedAccount[]
-  metaAppConfigs             MetaAppConfig[]
-  accountSlots               AccountSlot[]
-  publications               Publication[]
-  wallet                     Wallet?
+  id                       String                    @id
+  name                     String
+  email                    String
+  emailVerified            Boolean                   @default(false)
+  image                    String?
+  role                     String                    @default("client")
+  zernioProfileId          String?                   @unique
+  createdAt                DateTime                  @default(now())
+  updatedAt                DateTime                  @updatedAt
+  sessions                 Session[]
+  accounts                 Account[]
+  socialConnectedAccounts  SocialConnectedAccount[]
+  accountSlots             AccountSlot[]
+  publications             Publication[]
+  socialConnectSessions    SocialConnectSession[]
+  wallet                   Wallet?
 
   @@unique([email])
   @@map("user")
@@ -77,79 +78,65 @@ model Verification {
   @@map("verification")
 }
 
-model InstagramConnectedAccount {
-  id                 String              @id @default(cuid())
-  userId             String
-  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  instagramUserId    String
-  username           String
-  displayName        String?
-  profilePictureUrl  String?
-  accessToken        String
-  tokenExpiresAt     DateTime
-  scopes             String
-  status             String              @default("connected")
-  integrationSource  String              @default("legacy_project_app")
-  metaAppConfigId    String?
-  metaAppConfig      MetaAppConfig?      @relation(fields: [metaAppConfigId], references: [id], onDelete: SetNull)
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
+model SocialConnectedAccount {
+  id                String              @id @default(cuid())
+  userId            String
+  user              User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  platform          String
+  zernioAccountId   String
+  zernioProfileId   String
+  username          String
+  displayName       String?
+  avatarUrl         String?
+  status            String              @default("connected")
+  canPost           Boolean             @default(true)
+  needsReconnect    Boolean             @default(false)
+  permissions       Json?
+  connectedAt       DateTime            @default(now())
+  disconnectedAt    DateTime?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
   publicationTargets PublicationTarget[]
-  accountSlot        AccountSlot?
+  accountSlot       AccountSlot?
 
-  @@unique([userId, instagramUserId])
+  @@unique([userId, zernioAccountId])
   @@index([userId])
-  @@index([status])
-  @@index([metaAppConfigId])
-  @@map("instagram_connected_account")
+  @@index([userId, platform, status])
+  @@index([zernioAccountId])
+  @@map("social_connected_account")
 }
 
-model InstagramOAuthState {
-  id              String        @id @default(cuid())
+model SocialConnectSession {
+  id              String   @id @default(cuid())
   userId          String
-  state           String        @unique
-  accountSlotId   String?
-  metaAppConfigId String
-  metaAppConfig   MetaAppConfig @relation(fields: [metaAppConfigId], references: [id], onDelete: Cascade)
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountSlotId   String
+  platform        String
+  zernioProfileId String
+  mode            String   @default("standard")
+  state           String   @unique
+  tempToken       String?
+  connectToken    String?
+  step            String?
   expiresAt       DateTime
-  createdAt       DateTime      @default(now())
+  completedAt     DateTime?
+  createdAt       DateTime @default(now())
 
   @@index([userId])
   @@index([expiresAt])
-  @@index([metaAppConfigId])
-  @@map("instagram_oauth_state")
-}
-
-model MetaAppConfig {
-  id                String                      @id @default(cuid())
-  publicId          String                      @unique
-  userId            String
-  user              User                        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  label             String
-  appId             String                      @unique
-  appSecret         String
-  redirectUri       String
-  requestedScopes   String
-  isActive          Boolean                     @default(true)
-  createdAt         DateTime                    @default(now())
-  updatedAt         DateTime                    @updatedAt
-  connectedAccounts InstagramConnectedAccount[]
-  oauthStates       InstagramOAuthState[]
-
-  @@index([userId, isActive])
-  @@map("meta_app_config")
+  @@map("social_connect_session")
 }
 
 model AccountSlot {
-  id                          String                     @id @default(cuid())
-  userId                      String
-  user                        User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  instagramConnectedAccountId String?                    @unique
-  instagramConnectedAccount   InstagramConnectedAccount? @relation(fields: [instagramConnectedAccountId], references: [id], onDelete: SetNull)
-  status                      String                     @default("active")
-  expiresAt                   DateTime
-  createdAt                   DateTime                   @default(now())
-  updatedAt                   DateTime                   @updatedAt
+  id                        String                  @id @default(cuid())
+  userId                    String
+  user                      User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  socialConnectedAccountId  String?                 @unique
+  socialConnectedAccount    SocialConnectedAccount? @relation(fields: [socialConnectedAccountId], references: [id], onDelete: SetNull)
+  status                    String                  @default("active")
+  expiresAt                 DateTime
+  createdAt                 DateTime                @default(now())
+  updatedAt                 DateTime                @updatedAt
 
   @@index([userId])
   @@index([status])
@@ -167,6 +154,8 @@ model Publication {
   mediaUrl         String
   objectKey        String?
   objectKeys       String[]            @default([])
+  zernioPostId     String?             @unique
+  idempotencyKey   String              @unique
   status           String              @default("pending")
   createdAt        DateTime            @default(now())
   updatedAt        DateTime            @updatedAt
@@ -174,26 +163,43 @@ model Publication {
 
   @@index([userId])
   @@index([status])
+  @@index([zernioPostId])
   @@map("publication")
 }
 
 model PublicationTarget {
-  id                          String                    @id @default(cuid())
-  publicationId               String
-  publication                 Publication               @relation(fields: [publicationId], references: [id], onDelete: Cascade)
-  instagramConnectedAccountId String
-  instagramConnectedAccount   InstagramConnectedAccount @relation(fields: [instagramConnectedAccountId], references: [id], onDelete: Cascade)
-  status                      String                    @default("pending")
-  instagramMediaId            String?
-  instagramPermalink          String?
-  errorMessage                String?
-  createdAt                   DateTime                  @default(now())
-  updatedAt                   DateTime                  @updatedAt
+  id                       String                 @id @default(cuid())
+  publicationId            String
+  publication              Publication            @relation(fields: [publicationId], references: [id], onDelete: Cascade)
+  socialConnectedAccountId String
+  socialConnectedAccount   SocialConnectedAccount @relation(fields: [socialConnectedAccountId], references: [id], onDelete: Cascade)
+  platform                 String
+  zernioAccountId          String
+  status                   String                 @default("pending")
+  platformPostId           String?
+  platformPostUrl          String?
+  errorMessage             String?
+  errorCode                String?
+  createdAt                DateTime               @default(now())
+  updatedAt                DateTime               @updatedAt
 
   @@index([publicationId])
-  @@index([instagramConnectedAccountId])
+  @@index([socialConnectedAccountId])
   @@index([status])
   @@map("publication_target")
+}
+
+model ZernioWebhookEvent {
+  id          String    @id @default(cuid())
+  eventId     String    @unique
+  eventType   String
+  payload     Json
+  processedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([eventType])
+  @@index([createdAt])
+  @@map("zernio_webhook_event")
 }
 
 model OmegaPayWebhookEvent {

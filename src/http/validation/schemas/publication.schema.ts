@@ -2,7 +2,7 @@ import { z } from "zod";
 import {
   PublicationDestinationScopeEnum,
   PublicationTypeEnum,
-} from "@/domain/enums/instagram.enum";
+} from "@/domain/enums/publication.enum";
 
 export const createPublicationBodySchema = z
   .object({
@@ -11,7 +11,7 @@ export const createPublicationBodySchema = z
     caption: z.string().max(2200).optional().nullable(),
     objectKey: z.string().min(1).optional(),
     objectKeys: z.array(z.string().min(1)).min(1).max(10).optional(),
-    instagramConnectedAccountIds: z.array(z.string().min(1)).optional(),
+    socialConnectedAccountIds: z.array(z.string().min(1)).optional(),
   })
   .superRefine((data, context) => {
     const hasObjectKey = Boolean(data.objectKey);
@@ -27,24 +27,15 @@ export const createPublicationBodySchema = z
 
     if (
       data.destinationScope === PublicationDestinationScopeEnum.SELECTED &&
-      (!data.instagramConnectedAccountIds ||
-        data.instagramConnectedAccountIds.length === 0)
+      (!data.socialConnectedAccountIds ||
+        data.socialConnectedAccountIds.length === 0)
     ) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "instagramConnectedAccountIds é obrigatório quando destinationScope é selected",
-        path: ["instagramConnectedAccountIds"],
+        message: "socialConnectedAccountIds é obrigatório quando destinationScope é selected",
+        path: ["socialConnectedAccountIds"],
       });
     }
   });
 
 export type TCreatePublicationBody = z.infer<typeof createPublicationBodySchema>;
-
-export const instagramConnectCallbackQuerySchema = z.object({
-  code: z.string().min(1),
-  state: z.string().min(1),
-});
-
-export type TInstagramConnectCallbackQuery = z.infer<
-  typeof instagramConnectCallbackQuerySchema
->;

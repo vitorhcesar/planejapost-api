@@ -28,14 +28,14 @@ export class ListAdminUsersUseCase {
 
     const usersWithCounts = await Promise.all(
       users.map(async (user) => {
-        const [instagramAccountsCount, wallet] = await Promise.all([
-          this.userRepository.countInstagramAccountsByUserId(user.id),
+        const [socialAccountsCount, wallet] = await Promise.all([
+          this.userRepository.countSocialAccountsByUserId(user.id),
           this.walletRepository.getOrCreateByUserId(user.id),
         ]);
 
         return {
           ...mapUserToDto(user),
-          instagramAccountsCount,
+          socialAccountsCount,
           walletBalance: wallet.balance,
         };
       }),
