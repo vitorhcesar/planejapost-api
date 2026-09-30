@@ -14,6 +14,7 @@ export enum PublicationStatusEnum {
   COMPLETED = "completed",
   PARTIAL_FAILURE = "partial_failure",
   FAILED = "failed",
+  UNVERIFIED = "unverified",
 }
 
 export enum PublicationTargetStatusEnum {
@@ -21,4 +22,5 @@ export enum PublicationTargetStatusEnum {
   PROCESSING = "processing",
   SUCCESS = "success",
   FAILED = "failed",
+  UNVERIFIED = "unverified",
 }

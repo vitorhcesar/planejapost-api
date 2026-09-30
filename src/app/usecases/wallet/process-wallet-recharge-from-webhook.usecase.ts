@@ -1,13 +1,19 @@
 import type { IOmegaPayWebhookPayload } from "@/domain/acquirer/omegapay-webhook";
 import type { IWalletRepository } from "@/domain/repositories/wallet.repository";
+import type { ILogger } from "@/domain/services/logger.service";
 import { OmegaPayWebhookEventEnum } from "@/domain/enums/omegapay.enum";
 import {
   WalletRechargeStatusEnum,
   WalletTransactionTypeEnum,
 } from "@/domain/enums/wallet.enum";
 
+const WALLET_SCOPE = "Carteira";
+
 export class ProcessWalletRechargeFromWebhookUseCase {
-  constructor(private readonly walletRepository: IWalletRepository) {}
+  constructor(
+    private readonly walletRepository: IWalletRepository,
+    private readonly logger: ILogger,
+  ) {}
 
   async execute(payload: IOmegaPayWebhookPayload): Promise<void> {
     const recharge = await this.resolveRecharge(payload);
@@ -67,11 +73,11 @@ export class ProcessWalletRechargeFromWebhookUseCase {
 
     await this.walletRepository.markRechargePaid(rechargeId);
 
-    console.info("[Wallet] Recarga creditada via webhook OmegaPay", {
-      rechargeId,
-      walletId,
-      amount,
-      referenceKey,
+    this.logger.info(WALLET_SCOPE, "Recarga creditada via webhook", {
+        rechargeId,
+        walletId,
+        amount,
+        referenceKey,
     });
   }
 

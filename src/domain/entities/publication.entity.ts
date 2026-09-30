@@ -152,6 +152,11 @@ export class PublicationTarget {
     this.props.updatedAt = new Date();
   }
 
+  markAsUnverified(): void {
+    this.props.status = PublicationTargetStatusEnum.UNVERIFIED;
+    this.props.updatedAt = new Date();
+  }
+
   toObject(): IPublicationTargetProps {
     return { ...this.props };
   }
@@ -290,6 +295,41 @@ export class Publication {
   applyAggregateStatus(status: PublicationStatusEnum): void {
     this.props.status = status;
     this.props.updatedAt = new Date();
+  }
+
+  applyVerificationTimeoutIfStale(
+    timeoutMs: number,
+    now: Date = new Date(),
+  ): boolean {
+    if (
+      this.props.status !== PublicationStatusEnum.PROCESSING &&
+      this.props.status !== PublicationStatusEnum.PENDING
+    ) {
+      return false;
+    }
+
+    if (now.getTime() - this.props.updatedAt.getTime() < timeoutMs) {
+      return false;
+    }
+
+    this.props.status = PublicationStatusEnum.UNVERIFIED;
+    this.props.updatedAt = now;
+    this.props.targets = this.props.targets.map((target) => {
+      if (
+        target.status === PublicationTargetStatusEnum.PENDING ||
+        target.status === PublicationTargetStatusEnum.PROCESSING
+      ) {
+        return {
+          ...target,
+          status: PublicationTargetStatusEnum.UNVERIFIED,
+          updatedAt: now,
+        };
+      }
+
+      return target;
+    });
+
+    return true;
   }
 
   replaceTargets(targets: PublicationTarget[]): void {

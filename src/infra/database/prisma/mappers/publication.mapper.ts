@@ -132,6 +132,8 @@ export class PublicationMapper {
         return PublicationStatusEnum.PARTIAL_FAILURE;
       case PublicationStatusEnum.FAILED:
         return PublicationStatusEnum.FAILED;
+      case PublicationStatusEnum.UNVERIFIED:
+        return PublicationStatusEnum.UNVERIFIED;
       default:
         return PublicationStatusEnum.PENDING;
     }
@@ -145,6 +147,8 @@ export class PublicationMapper {
         return PublicationTargetStatusEnum.SUCCESS;
       case PublicationTargetStatusEnum.FAILED:
         return PublicationTargetStatusEnum.FAILED;
+      case PublicationTargetStatusEnum.UNVERIFIED:
+        return PublicationTargetStatusEnum.UNVERIFIED;
       default:
         return PublicationTargetStatusEnum.PENDING;
     }

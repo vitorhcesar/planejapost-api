@@ -6,6 +6,7 @@ import {
 } from "@/domain/enums/publication.enum";
 import type { ISocialConnectedAccountRepository } from "@/domain/repositories/social-connected-account.repository";
 import type { IPublicationRepository } from "@/domain/repositories/publication.repository";
+import type { ILogger } from "@/domain/services/logger.service";
 import type { IPublicationDto } from "@/app/usecases/publication/dto/publication.dto";
 import { mapPublicationToDto } from "@/app/usecases/publication/map-publication-to-dto.util";
 import type { IZernioMediaService } from "@/domain/zernio/zernio-media.service";
@@ -16,6 +17,7 @@ import {
   getExistingPostIdFromError,
   mapZernioErrorToAppError,
 } from "@/domain/zernio/map-zernio-error.util";
+import { resolvePublicationVerificationTimeout } from "@/app/usecases/publication/resolve-publication-verification-timeout.util";
 
 export interface ICreatePublicationInput {
   type: PublicationTypeEnum;
@@ -204,7 +206,10 @@ export class CreateAndPublishPublicationUseCase {
 }
 
 export class GetPublicationUseCase {
-  constructor(private readonly publicationRepository: IPublicationRepository) {}
+  constructor(
+    private readonly publicationRepository: IPublicationRepository,
+    private readonly logger: ILogger,
+  ) {}
 
   async execute(authUserId: string, publicationId: string): Promise<IPublicationDto> {
     const publication = await this.publicationRepository.findByIdAndUserId(
@@ -216,16 +221,36 @@ export class GetPublicationUseCase {
       throw new AppError("Publicação não encontrada", 404, "publication_not_found");
     }
 
-    return mapPublicationToDto(publication);
+    const resolvedPublication = await resolvePublicationVerificationTimeout(
+      publication,
+      this.publicationRepository,
+      this.logger,
+    );
+
+    return mapPublicationToDto(resolvedPublication);
   }
 }
 
 export class ListPublicationsUseCase {
-  constructor(private readonly publicationRepository: IPublicationRepository) {}
+  constructor(
+    private readonly publicationRepository: IPublicationRepository,
+    private readonly logger: ILogger,
+  ) {}
 
   async execute(authUserId: string): Promise<IPublicationDto[]> {
     const publications = await this.publicationRepository.findAllByUserId(authUserId);
-    return publications.map(mapPublicationToDto);
+
+    const resolvedPublications = await Promise.all(
+      publications.map((publication) =>
+        resolvePublicationVerificationTimeout(
+          publication,
+          this.publicationRepository,
+          this.logger,
+        ),
+      ),
+    );
+
+    return resolvedPublications.map(mapPublicationToDto);
   }
 }
 

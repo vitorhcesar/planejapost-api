@@ -1,11 +1,15 @@
 import type { IOmegaPayWebhookPayload, IOmegaPayWebhookReceipt } from "@/domain/acquirer/omegapay-webhook";
 import type { IOmegaPayWebhookRepository } from "@/domain/repositories/omegapay-webhook.repository";
+import type { ILogger } from "@/domain/services/logger.service";
 import { ProcessWalletRechargeFromWebhookUseCase } from "@/app/usecases/wallet/process-wallet-recharge-from-webhook.usecase";
+
+const OMEGAPAY_WEBHOOK_SCOPE = "OmegaPay Webhook";
 
 export class ReceiveOmegaPayWebhookUseCase {
   constructor(
     private readonly omegaPayWebhookRepository: IOmegaPayWebhookRepository,
     private readonly processWalletRechargeFromWebhookUseCase: ProcessWalletRechargeFromWebhookUseCase,
+    private readonly logger: ILogger,
   ) {}
 
   async execute(payload: IOmegaPayWebhookPayload): Promise<IOmegaPayWebhookReceipt> {
@@ -16,21 +20,24 @@ export class ReceiveOmegaPayWebhookUseCase {
         ? payload.transaction.id
         : undefined;
 
-    console.info("[OmegaPay Webhook] Recebido", {
-      id: receipt.id,
-      event: receipt.event,
+    this.logger.info(OMEGAPAY_WEBHOOK_SCOPE, "Webhook recebido", {
+      webhookId: receipt.id,
+      evento: receipt.event,
       transactionId,
-      receivedAt: receipt.receivedAt.toISOString(),
     });
 
     try {
       await this.processWalletRechargeFromWebhookUseCase.execute(payload);
     } catch (error) {
-      console.error("[OmegaPay Webhook] Falha ao processar recarga de carteira", {
-        webhookId: receipt.id,
-        event: receipt.event,
+      this.logger.error(
+        OMEGAPAY_WEBHOOK_SCOPE,
+        "Falha ao processar recarga de carteira",
         error,
-      });
+        {
+          webhookId: receipt.id,
+          evento: receipt.event,
+        },
+      );
     }
 
     return receipt;

@@ -98,6 +98,7 @@ export function createUseCases(
 ): IUseCases {
   const processWalletRechargeFromWebhook = new ProcessWalletRechargeFromWebhookUseCase(
     repositories.wallet,
+    infrastructure.logger,
   );
 
   const ensureZernioProfile = new EnsureZernioProfileUseCase(
@@ -122,7 +123,7 @@ export function createUseCases(
       ),
     },
     publication: {
-      list: new ListPublicationsUseCase(repositories.publication),
+      list: new ListPublicationsUseCase(repositories.publication, infrastructure.logger),
       uploadMedia: new UploadPublicationMediaUseCase(
         infrastructure.temporaryMediaStorage,
         infrastructure.zernioClient,
@@ -135,7 +136,7 @@ export function createUseCases(
         infrastructure.temporaryMediaStorage,
       ),
       getThumbnail: new GetPublicationThumbnailUseCase(repositories.publication),
-      get: new GetPublicationUseCase(repositories.publication),
+      get: new GetPublicationUseCase(repositories.publication, infrastructure.logger),
     },
     wallet: {
       getBalance: new GetWalletBalanceUseCase(repositories.wallet),
@@ -197,12 +198,14 @@ export function createUseCases(
         repositories.socialConnectedAccount,
         repositories.accountSlot,
         repositories.publication,
+        infrastructure.logger,
       ),
     },
     omegapay: {
       receiveWebhook: new ReceiveOmegaPayWebhookUseCase(
         repositories.omegaPayWebhook,
         processWalletRechargeFromWebhook,
+        infrastructure.logger,
       ),
     },
     admin: {

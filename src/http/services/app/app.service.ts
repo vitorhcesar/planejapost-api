@@ -15,6 +15,8 @@ import { EmailVerificationRoutes } from "@/http/routes/api/v1/email-verification
 import { PublicObjectRoutes } from "@/http/routes/api/v1/public-object.routes";
 import { SocialRoutes } from "@/http/routes/api/v1/social.routes";
 import { registerGlobalApiErrorHandler } from "@/http/utils/register-global-api-error-handler";
+import { registerHttpRequestLogger } from "@/http/utils/register-http-request-logger";
+import { logServerStartup } from "@/infra/logging/log-server-startup";
 
 export class AppService {
   private readonly env = EnvService.getInstance();
@@ -69,12 +71,17 @@ export class AppService {
         .use(new AdminRoutes(this.serverClient, this.container).build()),
     );
 
-    registerGlobalApiErrorHandler(app);
+    const logger = this.container.infrastructure.logger;
+
+    registerHttpRequestLogger(app, logger);
+    registerGlobalApiErrorHandler(app, logger);
 
     app.listen(this.env.port, ({ hostname, port }) => {
-      console.log(`Server running at http://${hostname}:${port}`);
-      console.log(`Swagger available at http://${hostname}:${port}/swagger`);
-      console.log(`Better Auth available at http://${hostname}:${port}/api/auth`);
+      logServerStartup(logger, {
+        hostname: hostname ?? "localhost",
+        port: port ?? this.env.port,
+        publicApiUrl: this.env.publicApiUrl,
+      });
     });
   }
 }

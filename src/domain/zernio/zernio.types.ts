@@ -72,6 +72,7 @@ export interface ICreateZernioPostInput {
   publishNow: boolean;
   platforms: IZernioPostPlatformInput[];
   idempotencyKey: string;
+  metadata?: Record<string, unknown>;
   tiktokSettings?: Record<string, unknown>;
 }
 

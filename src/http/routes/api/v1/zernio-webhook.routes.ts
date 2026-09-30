@@ -3,10 +3,13 @@ import { AppError } from "@/domain/errors/app.error";
 import { verifyZernioWebhookSignature } from "@/infra/zernio/zernio.client";
 import { EnvService } from "@/infra/config/env.service";
 
+const ZERNIO_WEBHOOK_SCOPE = "Zernio Webhook";
+
 export class ZernioWebhookRoutes extends BaseHttpRoute {
   build(): THttpRoute {
     const route = this.serverClient.createPublicRoute();
     const { handleWebhook } = this.container.useCases.zernio;
+    const logger = this.container.infrastructure.logger;
     const env = EnvService.getInstance();
 
     route.post(
@@ -23,6 +26,16 @@ export class ZernioWebhookRoutes extends BaseHttpRoute {
         });
 
         if (!isValidSignature) {
+          logger.error(
+            ZERNIO_WEBHOOK_SCOPE,
+            "Assinatura inválida",
+            new Error("invalid_signature"),
+            {
+              temAssinatura: Boolean(signatureHeader),
+              bytes: rawBody.length,
+            },
+          );
+
           throw new AppError(
             "Assinatura de webhook Zernio inválida",
             403,
@@ -42,6 +55,11 @@ export class ZernioWebhookRoutes extends BaseHttpRoute {
           (typeof payload.event === "string" ? payload.event : null);
 
         if (!eventId || !eventType) {
+          logger.warn(ZERNIO_WEBHOOK_SCOPE, "Headers ausentes", {
+            eventId,
+            eventType,
+          });
+
           throw new AppError(
             "Headers de webhook Zernio ausentes",
             400,
@@ -49,17 +67,30 @@ export class ZernioWebhookRoutes extends BaseHttpRoute {
           );
         }
 
-        const result = await handleWebhook.execute({
+        logger.info(ZERNIO_WEBHOOK_SCOPE, "Webhook recebido", {
+          evento: eventType,
           eventId,
-          eventType,
-          payload,
         });
 
-        return this.successResponse(
-          result.duplicate ? "Evento duplicado ignorado" : "Webhook Zernio recebido",
-          result,
-          200,
-        );
+        try {
+          const result = await handleWebhook.execute({
+            eventId,
+            eventType,
+            payload,
+          });
+
+          if (result.duplicate) {
+            return this.successResponse("Evento duplicado ignorado", result, 200);
+          }
+
+          return this.successResponse("Webhook Zernio recebido", result, 200);
+        } catch (error) {
+          logger.error(ZERNIO_WEBHOOK_SCOPE, "Erro inesperado no handler HTTP", error, {
+            evento: eventType,
+            eventId,
+          });
+          throw error;
+        }
       },
       { parse: "none" },
     );

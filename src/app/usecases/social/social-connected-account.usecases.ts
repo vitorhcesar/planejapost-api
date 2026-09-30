@@ -82,16 +82,6 @@ export class CreateSocialConnectSessionUseCase {
       : ConnectModeEnum.STANDARD;
     const state = randomBytes(24).toString("hex");
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
-    const redirectUrl = `${this.frontendOrigin}/social/connect/callback`;
-
-    const connectUrl = await this.zernioConnectService.getConnectUrl({
-      platform: input.platform,
-      profileId: zernioProfileId,
-      redirectUrl,
-      scopes: "posting",
-      headless: mode === ConnectModeEnum.HEADLESS,
-      loginMethod: input.loginMethod,
-    });
 
     const session = SocialConnectSession.create({
       userId: input.userId,
@@ -105,6 +95,17 @@ export class CreateSocialConnectSessionUseCase {
 
     const savedSession =
       await this.socialConnectSessionRepository.create(session);
+
+    const redirectUrl = `${this.frontendOrigin}/social/connect/callback?connectSessionId=${encodeURIComponent(savedSession.id)}`;
+
+    const connectUrl = await this.zernioConnectService.getConnectUrl({
+      platform: input.platform,
+      profileId: zernioProfileId,
+      redirectUrl,
+      scopes: "posting",
+      headless: mode === ConnectModeEnum.HEADLESS,
+      loginMethod: input.loginMethod,
+    });
 
     return {
       sessionId: savedSession.id,
@@ -147,10 +148,6 @@ export class CompleteSocialConnectUseCase {
       throw new AppError("Sessão de conexão expirada", 400, "connect_session_expired");
     }
 
-    if (session.isCompleted()) {
-      throw new AppError("Sessão de conexão já concluída", 400, "connect_session_completed");
-    }
-
     await this.accountSlotRepository.expireOverdueSlots(input.userId);
 
     const slot = await this.accountSlotRepository.findByIdAndUserId(
@@ -160,6 +157,35 @@ export class CompleteSocialConnectUseCase {
 
     if (!slot) {
       throw new AppError("Slot não encontrado", 404, "account_slot_not_found");
+    }
+
+    if (session.isCompleted()) {
+      if (!slot.socialConnectedAccountId) {
+        throw new AppError(
+          "Sessão de conexão já concluída",
+          400,
+          "connect_session_completed",
+        );
+      }
+
+      const existingConnectedAccount =
+        await this.socialConnectedAccountRepository.findByIdAndUserId(
+          slot.socialConnectedAccountId,
+          input.userId,
+        );
+
+      if (!existingConnectedAccount) {
+        throw new AppError(
+          "Sessão de conexão já concluída",
+          400,
+          "connect_session_completed",
+        );
+      }
+
+      return mapSocialConnectedAccountToDto(
+        existingConnectedAccount,
+        this.accountSlotRepository,
+      );
     }
 
     if (slot.socialConnectedAccountId) {

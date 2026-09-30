@@ -263,6 +263,7 @@ export class ZernioClient implements IZernioClient {
           content: input.content ?? undefined,
           mediaItems: input.mediaItems,
           publishNow: input.publishNow,
+          metadata: input.metadata,
           platforms: input.platforms.map((platform) => ({
             platform: platform.platform,
             accountId: platform.accountId,

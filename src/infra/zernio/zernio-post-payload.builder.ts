@@ -35,6 +35,9 @@ export function buildZernioPostPayload(publication: Publication, mediaUrls: stri
       url,
     })),
     publishNow: true,
+    metadata: {
+      publicationId: publication.id,
+    },
     platforms: publication.targets.map((target) => ({
       platform: target.platform,
       accountId: target.zernioAccountId,

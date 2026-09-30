@@ -11,7 +11,7 @@ const envSchema = z.object({
   CORS_ORIGIN: z.string().min(1),
   ZERNIO_API_KEY: z.string().min(1).optional(),
   ZERNIO_WEBHOOK_SECRET: z.string().min(1).optional(),
-  ZERNIO_API_BASE_URL: z.string().url().default("https://zernio.com/api/v1"),
+  ZERNIO_API_BASE_URL: z.string().url().default("https://zernio.com/api"),
   USE_NGROK: z.enum(["true", "false"]).optional(),
   NGROK_AUTHTOKEN: z.string().min(1).optional(),
   PUBLIC_API_URL: z.string().url(),
