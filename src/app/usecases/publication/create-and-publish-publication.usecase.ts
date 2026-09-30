@@ -2,7 +2,9 @@ import { AppError } from "@/domain/errors/app.error";
 import { Publication } from "@/domain/entities/publication.entity";
 import {
   PublicationDestinationScopeEnum,
+  PublicationStatusEnum,
   PublicationTypeEnum,
+  PublishModeEnum,
 } from "@/domain/enums/publication.enum";
 import type { ISocialConnectedAccountRepository } from "@/domain/repositories/social-connected-account.repository";
 import type { IPublicationRepository } from "@/domain/repositories/publication.repository";
@@ -18,6 +20,11 @@ import {
   mapZernioErrorToAppError,
 } from "@/domain/zernio/map-zernio-error.util";
 import { resolvePublicationVerificationTimeout } from "@/app/usecases/publication/resolve-publication-verification-timeout.util";
+import {
+  isValidIanaTimezone,
+  parseScheduledForToUtcDate,
+  scheduledForHasExplicitOffset,
+} from "@/domain/utils/parse-scheduled-for.util";
 
 export interface ICreatePublicationInput {
   type: PublicationTypeEnum;
@@ -26,6 +33,9 @@ export interface ICreatePublicationInput {
   objectKey?: string;
   objectKeys?: string[];
   socialConnectedAccountIds?: string[];
+  scheduledFor?: string;
+  timezone?: string;
+  publishMode?: PublishModeEnum;
 }
 
 export class CreateAndPublishPublicationUseCase {
@@ -41,6 +51,9 @@ export class CreateAndPublishPublicationUseCase {
     authUserId: string,
     input: ICreatePublicationInput,
   ): Promise<IPublicationDto> {
+    const isScheduled = this.isScheduledInput(input);
+    const scheduleInput = isScheduled ? this.resolveScheduleInput(input) : null;
+
     const destinationAccounts = await this.resolveDestinationAccounts(
       authUserId,
       input,
@@ -85,6 +98,9 @@ export class CreateAndPublishPublicationUseCase {
       mediaUrl: mediaUrls[0]!,
       objectKey: objectKeys[0]!,
       objectKeys,
+      publishMode: isScheduled ? PublishModeEnum.SCHEDULED : PublishModeEnum.NOW,
+      scheduledFor: scheduleInput?.scheduledForUtc ?? null,
+      timezone: scheduleInput?.timezone ?? null,
       targets: destinationAccounts.map((account) => ({
         socialConnectedAccountId: account.id,
         platform: account.platform,
@@ -95,18 +111,40 @@ export class CreateAndPublishPublicationUseCase {
     const savedPublication = await this.publicationRepository.save(publication);
 
     try {
-      const payload = buildZernioPostPayload(savedPublication, mediaUrls);
+      const payload = buildZernioPostPayload(savedPublication, mediaUrls, {
+        publishNow: !isScheduled,
+        scheduledFor: scheduleInput?.scheduledForRaw,
+        timezone: scheduleInput?.timezone,
+      });
       const zernioPost = await this.zernioPostService.createPost(payload);
 
-      savedPublication.markAsProcessing();
       savedPublication.setZernioPostId(zernioPost.postId);
+
+      if (isScheduled && zernioPost.status.toLowerCase() === "scheduled") {
+        savedPublication.markAsScheduled(
+          scheduleInput!.scheduledForUtc,
+          scheduleInput!.timezone,
+        );
+      } else {
+        savedPublication.markAsProcessing();
+      }
+
       await this.publicationRepository.save(savedPublication);
     } catch (error) {
       const existingPostId = getExistingPostIdFromError(error);
 
       if (existingPostId) {
-        savedPublication.markAsProcessing();
         savedPublication.setZernioPostId(existingPostId);
+
+        if (isScheduled) {
+          savedPublication.markAsScheduled(
+            scheduleInput!.scheduledForUtc,
+            scheduleInput!.timezone,
+          );
+        } else {
+          savedPublication.markAsProcessing();
+        }
+
         await this.publicationRepository.save(savedPublication);
       } else {
         throw mapZernioErrorToAppError(error);
@@ -115,6 +153,59 @@ export class CreateAndPublishPublicationUseCase {
 
     const refreshed = await this.publicationRepository.findById(savedPublication.id);
     return mapPublicationToDto(refreshed ?? savedPublication);
+  }
+
+  private isScheduledInput(input: ICreatePublicationInput): boolean {
+    if (input.publishMode === PublishModeEnum.SCHEDULED) {
+      return true;
+    }
+
+    return Boolean(input.scheduledFor);
+  }
+
+  private resolveScheduleInput(input: ICreatePublicationInput): {
+    scheduledForRaw: string;
+    scheduledForUtc: Date;
+    timezone: string;
+  } {
+    const scheduledForRaw = input.scheduledFor?.trim();
+
+    if (!scheduledForRaw) {
+      throw new AppError(
+        "scheduledFor é obrigatório para agendamento",
+        400,
+        "scheduled_for_required",
+      );
+    }
+
+    const timezone = input.timezone?.trim();
+
+    if (!scheduledForHasExplicitOffset(scheduledForRaw)) {
+      if (!timezone) {
+        throw new AppError(
+          "timezone é obrigatório quando scheduledFor não possui offset",
+          400,
+          "timezone_required",
+        );
+      }
+
+      if (!isValidIanaTimezone(timezone)) {
+        throw new AppError("timezone inválido", 400, "invalid_timezone");
+      }
+    } else if (timezone && !isValidIanaTimezone(timezone)) {
+      throw new AppError("timezone inválido", 400, "invalid_timezone");
+    }
+
+    const resolvedTimezone = timezone ?? "UTC";
+
+    return {
+      scheduledForRaw,
+      scheduledForUtc: parseScheduledForToUtcDate(
+        scheduledForRaw,
+        resolvedTimezone,
+      ),
+      timezone: resolvedTimezone,
+    };
   }
 
   private async resolveDestinationAccounts(
@@ -205,10 +296,52 @@ export class CreateAndPublishPublicationUseCase {
   }
 }
 
+export interface IListPublicationsInput {
+  status?: string;
+  from?: string;
+  to?: string;
+}
+
+export class ListPublicationsUseCase {
+  constructor(
+    private readonly publicationRepository: IPublicationRepository,
+    private readonly logger: ILogger,
+    private readonly zernioPostService: IZernioPostService,
+  ) {}
+
+  async execute(
+    authUserId: string,
+    filters: IListPublicationsInput = {},
+  ): Promise<IPublicationDto[]> {
+    const publications = await this.publicationRepository.findAllByUserIdWithFilters(
+      authUserId,
+      {
+        status: filters.status as PublicationStatusEnum | undefined,
+        from: filters.from ? new Date(filters.from) : undefined,
+        to: filters.to ? new Date(filters.to) : undefined,
+      },
+    );
+
+    const resolvedPublications = await Promise.all(
+      publications.map((publication) =>
+        resolvePublicationVerificationTimeout(
+          publication,
+          this.publicationRepository,
+          this.logger,
+          this.zernioPostService,
+        ),
+      ),
+    );
+
+    return resolvedPublications.map(mapPublicationToDto);
+  }
+}
+
 export class GetPublicationUseCase {
   constructor(
     private readonly publicationRepository: IPublicationRepository,
     private readonly logger: ILogger,
+    private readonly zernioPostService: IZernioPostService,
   ) {}
 
   async execute(authUserId: string, publicationId: string): Promise<IPublicationDto> {
@@ -225,32 +358,10 @@ export class GetPublicationUseCase {
       publication,
       this.publicationRepository,
       this.logger,
+      this.zernioPostService,
     );
 
     return mapPublicationToDto(resolvedPublication);
-  }
-}
-
-export class ListPublicationsUseCase {
-  constructor(
-    private readonly publicationRepository: IPublicationRepository,
-    private readonly logger: ILogger,
-  ) {}
-
-  async execute(authUserId: string): Promise<IPublicationDto[]> {
-    const publications = await this.publicationRepository.findAllByUserId(authUserId);
-
-    const resolvedPublications = await Promise.all(
-      publications.map((publication) =>
-        resolvePublicationVerificationTimeout(
-          publication,
-          this.publicationRepository,
-          this.logger,
-        ),
-      ),
-    );
-
-    return resolvedPublications.map(mapPublicationToDto);
   }
 }
 

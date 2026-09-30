@@ -1,11 +1,18 @@
 import { PublicationStatusEnum } from "@/domain/enums/publication.enum";
+import { SocialConnectedAccount } from "@/domain/entities/social-connected-account.entity";
 import type { Publication } from "@/domain/entities/publication.entity";
-import type { PublicationTarget } from "@/domain/entities/publication.entity";
+import { isSocialPlatform } from "@/domain/enums/social-platform.enum";
 import type { IAccountSlotRepository } from "@/domain/repositories/account-slot.repository";
 import type { IPublicationRepository } from "@/domain/repositories/publication.repository";
+import type { ISocialConnectSessionRepository } from "@/domain/repositories/social-connect-session.repository";
 import type { ISocialConnectedAccountRepository } from "@/domain/repositories/social-connected-account.repository";
 import type { IZernioWebhookEventRepository } from "@/domain/repositories/zernio-webhook-event.repository";
 import type { ILogger } from "@/domain/services/logger.service";
+import type { IZernioAccountService } from "@/domain/zernio/zernio-account.service";
+import {
+  alignPendingTargetsWithAggregateStatus,
+  syncPublicationTargetsFromPlatformEntries,
+} from "@/app/usecases/zernio/sync-publication-from-zernio-post.util";
 import {
   extractPlatformPostId,
   extractPlatformPublishedUrl,
@@ -13,7 +20,6 @@ import {
   extractZernioAccountId,
   extractZernioPostId,
   extractZernioPublicationIdFromMetadata,
-  type IZernioPostWebhookPlatformEntry,
 } from "@/app/usecases/zernio/parse-zernio-post-webhook-payload.util";
 
 const ZERNIO_WEBHOOK_SCOPE = "Zernio Webhook";
@@ -28,8 +34,10 @@ export class HandleZernioWebhookUseCase {
   constructor(
     private readonly zernioWebhookEventRepository: IZernioWebhookEventRepository,
     private readonly socialConnectedAccountRepository: ISocialConnectedAccountRepository,
+    private readonly socialConnectSessionRepository: ISocialConnectSessionRepository,
     private readonly accountSlotRepository: IAccountSlotRepository,
     private readonly publicationRepository: IPublicationRepository,
+    private readonly zernioAccountService: IZernioAccountService,
     private readonly logger: ILogger,
   ) {}
 
@@ -84,7 +92,10 @@ export class HandleZernioWebhookUseCase {
       eventType === "post.platform.failed" ||
       eventType === "post.published" ||
       eventType === "post.partial" ||
-      eventType === "post.failed"
+      eventType === "post.failed" ||
+      eventType === "post.scheduled" ||
+      eventType === "post.cancelled" ||
+      eventType === "post.publishing"
     ) {
       await this.handlePostEvent(eventType, payload);
     }
@@ -98,6 +109,13 @@ export class HandleZernioWebhookUseCase {
         (payload.accountId as string | undefined) ??
         "",
     );
+    const profileId = String(account?.profileId ?? payload.profileId ?? "");
+    const platformValue = String(account?.platform ?? payload.platform ?? "");
+    const username = String(account?.username ?? "");
+    const displayName =
+      typeof account?.displayName === "string" ? account.displayName : undefined;
+    const avatarUrl =
+      typeof account?.avatarUrl === "string" ? account.avatarUrl : undefined;
 
     if (!accountId) {
       this.logger.warn(ZERNIO_WEBHOOK_SCOPE, "account.connected sem accountId", {});
@@ -109,11 +127,9 @@ export class HandleZernioWebhookUseCase {
 
     if (existing) {
       existing.updateProfileSnapshot({
-        username: typeof account?.username === "string" ? account.username : undefined,
-        displayName:
-          typeof account?.displayName === "string" ? account.displayName : undefined,
-        avatarUrl:
-          typeof account?.avatarUrl === "string" ? account.avatarUrl : undefined,
+        username: username || undefined,
+        displayName,
+        avatarUrl,
       });
       await this.socialConnectedAccountRepository.save(existing);
 
@@ -121,7 +137,114 @@ export class HandleZernioWebhookUseCase {
         zernioAccountId: accountId,
         username: existing.username,
       });
+      return;
     }
+
+    if (!profileId || !isSocialPlatform(platformValue)) {
+      this.logger.warn(ZERNIO_WEBHOOK_SCOPE, "account.connected sem profile/plataforma válidos", {
+        zernioAccountId: accountId,
+        profileId,
+        platform: platformValue,
+      });
+      return;
+    }
+
+    const pendingSession =
+      await this.socialConnectSessionRepository.findPendingByProfileAndPlatform(
+        profileId,
+        platformValue,
+      );
+
+    if (!pendingSession) {
+      this.logger.info(ZERNIO_WEBHOOK_SCOPE, "account.connected sem sessão pendente", {
+        zernioAccountId: accountId,
+        profileId,
+        platform: platformValue,
+      });
+      return;
+    }
+
+    const slot = await this.accountSlotRepository.findByIdAndUserId(
+      pendingSession.accountSlotId,
+      pendingSession.userId,
+    );
+
+    if (!slot) {
+      this.logger.warn(ZERNIO_WEBHOOK_SCOPE, "account.connected — slot não encontrado", {
+        sessionId: pendingSession.id,
+        accountSlotId: pendingSession.accountSlotId,
+      });
+      return;
+    }
+
+    if (slot.socialConnectedAccountId) {
+      this.logger.warn(ZERNIO_WEBHOOK_SCOPE, "account.connected — slot já ocupado", {
+        sessionId: pendingSession.id,
+        accountSlotId: slot.id,
+      });
+      return;
+    }
+
+    const existingForUser =
+      await this.socialConnectedAccountRepository.findByUserIdAndZernioAccountId(
+        pendingSession.userId,
+        accountId,
+      );
+
+    if (existingForUser) {
+      const existingAccountSlot =
+        await this.accountSlotRepository.findBySocialConnectedAccountId(existingForUser.id);
+
+      if (existingAccountSlot && existingAccountSlot.id !== slot.id) {
+        this.logger.warn(ZERNIO_WEBHOOK_SCOPE, "account.connected — conta já vinculada a outro slot", {
+          zernioAccountId: accountId,
+          userId: pendingSession.userId,
+        });
+        return;
+      }
+    }
+
+    const health = await this.zernioAccountService.getAccountHealth(accountId);
+    let socialAccount = existingForUser;
+
+    if (socialAccount) {
+      socialAccount.reconnect({
+        accountSlotId: slot.id,
+        username: username || socialAccount.username,
+        displayName: displayName ?? socialAccount.displayName,
+        avatarUrl: avatarUrl ?? socialAccount.avatarUrl,
+        canPost: health.canPost,
+        needsReconnect: health.needsReconnect,
+        permissions: health.permissions,
+      });
+    } else {
+      socialAccount = SocialConnectedAccount.create({
+        userId: pendingSession.userId,
+        accountSlotId: slot.id,
+        platform: platformValue,
+        zernioAccountId: accountId,
+        zernioProfileId: profileId,
+        username: username || accountId,
+        displayName: displayName ?? null,
+        avatarUrl: avatarUrl ?? null,
+        canPost: health.canPost,
+        needsReconnect: health.needsReconnect,
+        permissions: health.permissions,
+      });
+    }
+
+    const savedAccount = await this.socialConnectedAccountRepository.save(socialAccount);
+    await this.accountSlotRepository.assignAccount(slot.id, savedAccount.id);
+
+    pendingSession.markAsCompleted();
+    await this.socialConnectSessionRepository.save(pendingSession);
+
+    this.logger.info(ZERNIO_WEBHOOK_SCOPE, "Conta conectada via webhook", {
+      zernioAccountId: accountId,
+      socialAccountId: savedAccount.id,
+      sessionId: pendingSession.id,
+      platform: platformValue,
+    });
   }
 
   private async handleAccountDisconnected(payload: Record<string, unknown>): Promise<void> {
@@ -197,7 +320,7 @@ export class HandleZernioWebhookUseCase {
       return;
     }
 
-    this.syncTargetsFromPlatformEntries(
+    syncPublicationTargetsFromPlatformEntries(
       publication,
       extractPostWebhookPlatformEntries(payload),
     );
@@ -208,8 +331,15 @@ export class HandleZernioWebhookUseCase {
       publication.applyAggregateStatus(PublicationStatusEnum.PARTIAL_FAILURE);
     } else if (eventType === "post.failed") {
       publication.applyAggregateStatus(PublicationStatusEnum.FAILED);
+    } else if (eventType === "post.scheduled") {
+      publication.applyAggregateStatus(PublicationStatusEnum.SCHEDULED);
+    } else if (eventType === "post.cancelled") {
+      publication.markAsCancelled();
+    } else if (eventType === "post.publishing") {
+      publication.markAsProcessing();
     }
 
+    alignPendingTargetsWithAggregateStatus(publication);
     publication.finalizeStatus();
     await this.publicationRepository.save(publication);
 
@@ -288,50 +418,5 @@ export class HandleZernioWebhookUseCase {
       status: publication.status,
       ...(publishedUrl ? { url: publishedUrl } : {}),
     });
-  }
-
-  private syncTargetsFromPlatformEntries(
-    publication: Publication,
-    platformEntries: IZernioPostWebhookPlatformEntry[],
-  ): void {
-    if (platformEntries.length === 0) {
-      return;
-    }
-
-    const targets = publication.targets.map((target) => {
-      const entry = platformEntries.find(
-        (platformEntry) => platformEntry.accountId === target.zernioAccountId,
-      );
-
-      if (!entry) {
-        return target;
-      }
-
-      return this.applyPlatformEntryToTarget(target, entry);
-    });
-
-    publication.replaceTargets(targets);
-  }
-
-  private applyPlatformEntryToTarget(
-    target: PublicationTarget,
-    entry: IZernioPostWebhookPlatformEntry,
-  ): PublicationTarget {
-    const normalizedStatus = entry.status.toLowerCase();
-
-    if (normalizedStatus === "published" || normalizedStatus === "success") {
-      target.markAsSuccess(entry.platformPostId ?? "", entry.publishedUrl);
-      return target;
-    }
-
-    if (normalizedStatus === "failed" || normalizedStatus === "failure") {
-      target.markAsFailed(
-        entry.errorMessage ?? "Falha na publicação",
-        entry.errorCode,
-      );
-      return target;
-    }
-
-    return target;
   }
 }

@@ -19,6 +19,9 @@ export interface IPublicationDto {
   mediaUrls: string[];
   zernioPostId: string | null;
   status: string;
+  scheduledFor: string | null;
+  timezone: string | null;
+  publishMode: string;
   targets: IPublicationTargetDto[];
   createdAt: string;
   updatedAt: string;

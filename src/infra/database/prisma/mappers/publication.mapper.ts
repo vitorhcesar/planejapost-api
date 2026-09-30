@@ -11,6 +11,7 @@ import {
   PublicationStatusEnum,
   PublicationTargetStatusEnum,
   PublicationTypeEnum,
+  PublishModeEnum,
 } from "@/domain/enums/publication.enum";
 import {
   SocialPlatformEnum,
@@ -35,6 +36,10 @@ export class PublicationMapper {
       zernioPostId: row.zernioPostId,
       idempotencyKey: row.idempotencyKey,
       status: PublicationMapper.toPublicationStatus(row.status),
+      scheduledFor: row.scheduledFor,
+      timezone: row.timezone,
+      publishMode: PublicationMapper.toPublishMode(row.publishMode),
+      zernioQueueId: row.zernioQueueId,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
       targets: row.targets.map((target) => ({
@@ -68,6 +73,10 @@ export class PublicationMapper {
       zernioPostId: data.zernioPostId,
       idempotencyKey: data.idempotencyKey,
       status: data.status,
+      scheduledFor: data.scheduledFor,
+      timezone: data.timezone,
+      publishMode: data.publishMode,
+      zernioQueueId: data.zernioQueueId,
       targets: {
         create: data.targets.map((target) => ({
           socialConnectedAccountId: target.socialConnectedAccountId,
@@ -104,8 +113,25 @@ export class PublicationMapper {
       zernioPostId: data.zernioPostId,
       objectKey: data.objectKey,
       objectKeys: data.objectKeys,
+      scheduledFor: data.scheduledFor,
+      timezone: data.timezone,
+      publishMode: data.publishMode,
+      zernioQueueId: data.zernioQueueId,
       updatedAt: data.updatedAt,
     };
+  }
+
+  private static toPublishMode(mode: string): PublishModeEnum {
+    switch (mode) {
+      case PublishModeEnum.SCHEDULED:
+        return PublishModeEnum.SCHEDULED;
+      case PublishModeEnum.QUEUED:
+        return PublishModeEnum.QUEUED;
+      case PublishModeEnum.DRAFT:
+        return PublishModeEnum.DRAFT;
+      default:
+        return PublishModeEnum.NOW;
+    }
   }
 
   private static toPublicationType(type: string): PublicationTypeEnum {
@@ -124,6 +150,8 @@ export class PublicationMapper {
 
   private static toPublicationStatus(status: string): PublicationStatusEnum {
     switch (status) {
+      case PublicationStatusEnum.SCHEDULED:
+        return PublicationStatusEnum.SCHEDULED;
       case PublicationStatusEnum.PROCESSING:
         return PublicationStatusEnum.PROCESSING;
       case PublicationStatusEnum.COMPLETED:
@@ -134,6 +162,10 @@ export class PublicationMapper {
         return PublicationStatusEnum.FAILED;
       case PublicationStatusEnum.UNVERIFIED:
         return PublicationStatusEnum.UNVERIFIED;
+      case PublicationStatusEnum.CANCELLED:
+        return PublicationStatusEnum.CANCELLED;
+      case PublicationStatusEnum.DRAFT:
+        return PublicationStatusEnum.DRAFT;
       default:
         return PublicationStatusEnum.PENDING;
     }

@@ -24,6 +24,9 @@ export function mapPublicationToDto(publication: Publication): IPublicationDto {
     mediaUrls,
     zernioPostId: data.zernioPostId,
     status: data.status,
+    scheduledFor: data.scheduledFor?.toISOString() ?? null,
+    timezone: data.timezone,
+    publishMode: data.publishMode,
     targets: data.targets.map((target) => ({
       id: target.id,
       socialConnectedAccountId: target.socialConnectedAccountId,

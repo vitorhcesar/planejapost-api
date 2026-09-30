@@ -3,6 +3,7 @@ import {
   PublicationStatusEnum,
   PublicationTargetStatusEnum,
   PublicationTypeEnum,
+  PublishModeEnum,
 } from "@/domain/enums/publication.enum";
 import type { SocialPlatformEnum } from "@/domain/enums/social-platform.enum";
 import { randomUUID } from "node:crypto";
@@ -34,6 +35,10 @@ export interface IPublicationProps {
   zernioPostId: string | null;
   idempotencyKey: string;
   status: PublicationStatusEnum;
+  scheduledFor: Date | null;
+  timezone: string | null;
+  publishMode: PublishModeEnum;
+  zernioQueueId: string | null;
   createdAt: Date;
   updatedAt: Date;
   targets: IPublicationTargetProps[];
@@ -54,6 +59,9 @@ export interface IPublicationCreateProps {
   objectKey: string | null;
   objectKeys: string[];
   targets: IPublicationTargetCreateInput[];
+  publishMode?: PublishModeEnum;
+  scheduledFor?: Date | null;
+  timezone?: string | null;
 }
 
 export class PublicationTarget {
@@ -195,6 +203,10 @@ export class Publication {
       zernioPostId: null,
       idempotencyKey,
       status: PublicationStatusEnum.PENDING,
+      scheduledFor: props.scheduledFor ?? null,
+      timezone: props.timezone ?? null,
+      publishMode: props.publishMode ?? PublishModeEnum.NOW,
+      zernioQueueId: null,
       createdAt: now,
       updatedAt: now,
       targets: targets.map((target) => target.toObject()),
@@ -253,6 +265,22 @@ export class Publication {
     return this.props.status;
   }
 
+  get scheduledFor(): Date | null {
+    return this.props.scheduledFor;
+  }
+
+  get timezone(): string | null {
+    return this.props.timezone;
+  }
+
+  get publishMode(): PublishModeEnum {
+    return this.props.publishMode;
+  }
+
+  get zernioQueueId(): string | null {
+    return this.props.zernioQueueId;
+  }
+
   get targets(): PublicationTarget[] {
     return this.props.targets.map((target) => PublicationTarget.restore(target));
   }
@@ -265,6 +293,34 @@ export class Publication {
     this.props.status = PublicationStatusEnum.PROCESSING;
     this.props.updatedAt = new Date();
     this.markAllTargetsAsProcessing();
+  }
+
+  markAsScheduled(scheduledFor: Date, timezone: string): void {
+    this.props.status = PublicationStatusEnum.SCHEDULED;
+    this.props.scheduledFor = scheduledFor;
+    this.props.timezone = timezone;
+    this.props.publishMode = PublishModeEnum.SCHEDULED;
+    this.props.updatedAt = new Date();
+  }
+
+  reschedule(scheduledFor: Date, timezone: string): void {
+    this.props.scheduledFor = scheduledFor;
+    this.props.timezone = timezone;
+    this.props.publishMode = PublishModeEnum.SCHEDULED;
+    this.props.status = PublicationStatusEnum.SCHEDULED;
+    this.props.updatedAt = new Date();
+  }
+
+  markAsCancelled(): void {
+    this.props.status = PublicationStatusEnum.CANCELLED;
+    this.props.updatedAt = new Date();
+  }
+
+  canBeCancelledOrRescheduled(): boolean {
+    return (
+      this.props.status === PublicationStatusEnum.SCHEDULED ||
+      this.props.status === PublicationStatusEnum.DRAFT
+    );
   }
 
   setZernioPostId(zernioPostId: string): void {

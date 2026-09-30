@@ -1,5 +1,6 @@
 import type { SocialConnectSession } from "@/domain/entities/social-connect-session.entity";
 import type { ISocialConnectSessionRepository } from "@/domain/repositories/social-connect-session.repository";
+import type { SocialPlatformEnum } from "@/domain/enums/social-platform.enum";
 import { SocialConnectSessionMapper } from "@/infra/database/prisma/mappers/social-connect-session.mapper";
 import { BasePrismaRepository } from "@/infra/database/prisma/repositories/base-prisma.repository";
 
@@ -37,6 +38,23 @@ export class PrismaSocialConnectSessionRepository
   async findByState(state: string): Promise<SocialConnectSession | null> {
     const row = await this.getPrismaClient().socialConnectSession.findUnique({
       where: { state },
+    });
+
+    return row ? SocialConnectSessionMapper.toDomain(row) : null;
+  }
+
+  async findPendingByProfileAndPlatform(
+    zernioProfileId: string,
+    platform: SocialPlatformEnum,
+  ): Promise<SocialConnectSession | null> {
+    const row = await this.getPrismaClient().socialConnectSession.findFirst({
+      where: {
+        zernioProfileId,
+        platform,
+        completedAt: null,
+        expiresAt: { gt: new Date() },
+      },
+      orderBy: { createdAt: "desc" },
     });
 
     return row ? SocialConnectSessionMapper.toDomain(row) : null;

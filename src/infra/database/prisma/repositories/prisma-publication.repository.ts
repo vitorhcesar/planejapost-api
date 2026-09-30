@@ -1,7 +1,11 @@
 import { BasePrismaRepository } from "@/infra/database/prisma/repositories/base-prisma.repository";
 import { PublicationMapper } from "@/infra/database/prisma/mappers/publication.mapper";
 import type { Publication } from "@/domain/entities/publication.entity";
-import type { IPublicationRepository } from "@/domain/repositories/publication.repository";
+import { PublicationStatusEnum } from "@/domain/enums/publication.enum";
+import type {
+  IPublicationListFilters,
+  IPublicationRepository,
+} from "@/domain/repositories/publication.repository";
 
 export class PrismaPublicationRepository
   extends BasePrismaRepository
@@ -38,10 +42,30 @@ export class PrismaPublicationRepository
   }
 
   async findAllByUserId(userId: string): Promise<Publication[]> {
+    return this.findAllByUserIdWithFilters(userId, {});
+  }
+
+  async findAllByUserIdWithFilters(
+    userId: string,
+    filters: IPublicationListFilters,
+  ): Promise<Publication[]> {
     const rows = await this.getPrismaClient().publication.findMany({
-      where: { userId },
+      where: {
+        userId,
+        ...(filters.status ? { status: filters.status } : {}),
+        ...(filters.from || filters.to
+          ? {
+              scheduledFor: {
+                ...(filters.from ? { gte: filters.from } : {}),
+                ...(filters.to ? { lte: filters.to } : {}),
+              },
+            }
+          : {}),
+      },
       include: { targets: true },
-      orderBy: { createdAt: "desc" },
+      orderBy: filters.status === PublicationStatusEnum.SCHEDULED
+        ? { scheduledFor: "asc" }
+        : { createdAt: "desc" },
     });
 
     return rows.map(PublicationMapper.toDomain);

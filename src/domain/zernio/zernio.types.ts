@@ -69,16 +69,34 @@ export interface IZernioPostPlatformInput {
 export interface ICreateZernioPostInput {
   content?: string | null;
   mediaItems: IZernioMediaItem[];
-  publishNow: boolean;
+  publishNow?: boolean;
+  scheduledFor?: string;
+  timezone?: string;
   platforms: IZernioPostPlatformInput[];
   idempotencyKey: string;
   metadata?: Record<string, unknown>;
   tiktokSettings?: Record<string, unknown>;
 }
 
+export interface IUpdateZernioPostInput {
+  postId: string;
+  scheduledFor: string;
+  timezone?: string;
+}
+
+export interface IZernioPostPlatformEntry {
+  accountId: string;
+  platformPostId: string | null;
+  publishedUrl: string | null;
+  status: string;
+  errorMessage: string | null;
+  errorCode: string | null;
+}
+
 export interface IZernioPost {
   postId: string;
   status: string;
+  platforms: IZernioPostPlatformEntry[];
 }
 
 export interface IZernioSelectionOption {

@@ -10,11 +10,21 @@ export enum PublicationDestinationScopeEnum {
 
 export enum PublicationStatusEnum {
   PENDING = "pending",
+  SCHEDULED = "scheduled",
   PROCESSING = "processing",
   COMPLETED = "completed",
   PARTIAL_FAILURE = "partial_failure",
   FAILED = "failed",
   UNVERIFIED = "unverified",
+  CANCELLED = "cancelled",
+  DRAFT = "draft",
+}
+
+export enum PublishModeEnum {
+  NOW = "now",
+  SCHEDULED = "scheduled",
+  QUEUED = "queued",
+  DRAFT = "draft",
 }
 
 export enum PublicationTargetStatusEnum {

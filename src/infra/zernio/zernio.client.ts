@@ -8,6 +8,7 @@ import type { IZernioProfileService } from "@/domain/zernio/zernio-profile.servi
 import type {
   ICreateZernioPostInput,
   ICreateZernioProfileInput,
+  IUpdateZernioPostInput,
   IZernioAccount,
   IZernioAccountHealth,
   IZernioConnectUrlInput,
@@ -263,6 +264,8 @@ export class ZernioClient implements IZernioClient {
           content: input.content ?? undefined,
           mediaItems: input.mediaItems,
           publishNow: input.publishNow,
+          scheduledFor: input.scheduledFor,
+          timezone: input.timezone,
           metadata: input.metadata,
           platforms: input.platforms.map((platform) => ({
             platform: platform.platform,
@@ -279,6 +282,27 @@ export class ZernioClient implements IZernioClient {
     return {
       postId: String(post._id ?? post.id ?? ""),
       status: String(post.status ?? "publishing"),
+      platforms: [],
+    };
+  }
+
+  async updatePost(input: IUpdateZernioPostInput): Promise<IZernioPost> {
+    const response = await this.withRateLimitRetry(() =>
+      this.sdk.posts.updatePost({
+        path: { postId: input.postId },
+        body: {
+          scheduledFor: input.scheduledFor,
+          timezone: input.timezone,
+        },
+      }),
+    );
+
+    const post = asRecord(asRecord(response.data).post ?? response.data);
+
+    return {
+      postId: String(post._id ?? post.id ?? input.postId),
+      status: String(post.status ?? "scheduled"),
+      platforms: [],
     };
   }
 
@@ -299,6 +323,27 @@ export class ZernioClient implements IZernioClient {
       return {
         postId: String(post._id ?? post.id ?? postId),
         status: String(post.status ?? "publishing"),
+        platforms: asRecordArray(post.platforms)
+          .map((entry) => ({
+            accountId: String(entry.accountId ?? ""),
+            platformPostId:
+              typeof entry.platformPostId === "string" ? entry.platformPostId : null,
+            publishedUrl:
+              typeof entry.publishedUrl === "string"
+                ? entry.publishedUrl
+                : typeof entry.platformPostUrl === "string"
+                  ? entry.platformPostUrl
+                  : null,
+            status: String(entry.status ?? ""),
+            errorMessage: typeof entry.error === "string" ? entry.error : null,
+            errorCode:
+              typeof entry.errorCategory === "string"
+                ? entry.errorCategory
+                : typeof entry.errorCode === "string"
+                  ? entry.errorCode
+                  : null,
+          }))
+          .filter((entry) => entry.accountId.length > 0),
       };
     } catch (error) {
       if (error instanceof ZernioApiError && error.isNotFound()) {

@@ -22,6 +22,10 @@ import {
 } from "@/app/usecases/publication/create-and-publish-publication.usecase";
 import { UploadPublicationMediaUseCase } from "@/app/usecases/publication/upload-publication-media.usecase";
 import {
+  CancelPublicationUseCase,
+  ReschedulePublicationUseCase,
+} from "@/app/usecases/publication/schedule-publication.usecase";
+import {
   CompleteSocialConnectUseCase,
   CreateSocialConnectSessionUseCase,
   DisconnectSocialAccountUseCase,
@@ -54,6 +58,8 @@ export interface IUseCases {
     createAndPublish: CreateAndPublishPublicationUseCase;
     getThumbnail: GetPublicationThumbnailUseCase;
     get: GetPublicationUseCase;
+    reschedule: ReschedulePublicationUseCase;
+    cancel: CancelPublicationUseCase;
   };
   wallet: {
     getBalance: GetWalletBalanceUseCase;
@@ -123,7 +129,11 @@ export function createUseCases(
       ),
     },
     publication: {
-      list: new ListPublicationsUseCase(repositories.publication, infrastructure.logger),
+      list: new ListPublicationsUseCase(
+        repositories.publication,
+        infrastructure.logger,
+        infrastructure.zernioClient,
+      ),
       uploadMedia: new UploadPublicationMediaUseCase(
         infrastructure.temporaryMediaStorage,
         infrastructure.zernioClient,
@@ -136,7 +146,19 @@ export function createUseCases(
         infrastructure.temporaryMediaStorage,
       ),
       getThumbnail: new GetPublicationThumbnailUseCase(repositories.publication),
-      get: new GetPublicationUseCase(repositories.publication, infrastructure.logger),
+      get: new GetPublicationUseCase(
+        repositories.publication,
+        infrastructure.logger,
+        infrastructure.zernioClient,
+      ),
+      reschedule: new ReschedulePublicationUseCase(
+        repositories.publication,
+        infrastructure.zernioClient,
+      ),
+      cancel: new CancelPublicationUseCase(
+        repositories.publication,
+        infrastructure.zernioClient,
+      ),
     },
     wallet: {
       getBalance: new GetWalletBalanceUseCase(repositories.wallet),
@@ -196,8 +218,10 @@ export function createUseCases(
       handleWebhook: new HandleZernioWebhookUseCase(
         repositories.zernioWebhookEvent,
         repositories.socialConnectedAccount,
+        repositories.socialConnectSession,
         repositories.accountSlot,
         repositories.publication,
+        infrastructure.zernioClient,
         infrastructure.logger,
       ),
     },

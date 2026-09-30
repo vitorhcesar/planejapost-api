@@ -27,14 +27,26 @@ export function resolveMediaItemType(contentType: string): "image" | "video" {
   return contentType.startsWith("video/") ? "video" : "image";
 }
 
-export function buildZernioPostPayload(publication: Publication, mediaUrls: string[]) {
+export function buildZernioPostPayload(
+  publication: Publication,
+  mediaUrls: string[],
+  options?: {
+    publishNow?: boolean;
+    scheduledFor?: string;
+    timezone?: string;
+  },
+) {
+  const publishNow = options?.publishNow ?? true;
+
   return {
     content: publication.caption,
     mediaItems: mediaUrls.map((url) => ({
       type: resolveMediaItemTypeFromUrl(url),
       url,
     })),
-    publishNow: true,
+    publishNow: publishNow ? true : undefined,
+    scheduledFor: options?.scheduledFor,
+    timezone: options?.timezone,
     metadata: {
       publicationId: publication.id,
     },

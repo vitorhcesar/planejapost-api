@@ -41,6 +41,14 @@ class InMemoryPublicationRepository implements IPublicationRepository {
     );
   }
 
+  async findAllByUserIdWithFilters(userId: string, filters: { status?: string }) {
+    return this.findAllByUserId(userId).then((items) =>
+      filters.status
+        ? items.filter((item) => item.status === filters.status)
+        : items,
+    );
+  }
+
   async save(publication: Publication) {
     const saved = publication.id
       ? publication
@@ -120,7 +128,7 @@ class MockZernioPostService implements IZernioPostService {
 
   async createPost(input: Parameters<IZernioPostService["createPost"]>[0]) {
     this.calls.push(input);
-    return { postId: "zernio-post-1", status: "publishing" };
+    return { postId: "zernio-post-1", status: "publishing", platforms: [] };
   }
 
   async getPost() {
@@ -128,6 +136,10 @@ class MockZernioPostService implements IZernioPostService {
   }
 
   async cancelPost() {}
+
+  async updatePost() {
+    return { postId: "zernio-post-1", status: "scheduled", platforms: [] };
+  }
 }
 
 class MockZernioMediaService implements IZernioMediaService {

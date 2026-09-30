@@ -46,7 +46,9 @@ function extractZernioErrorShape(error: unknown): IZernioApiErrorShape {
       message: zernioError.message ?? "Falha na integração com Zernio",
       code: zernioError.code,
       type: zernioError.type,
-      details: zernioError.details,
+      details:
+        zernioError.details ??
+        (error instanceof AppError ? error.data : undefined),
     };
   }
 
@@ -73,18 +75,29 @@ function inferCodeFromStatus(statusCode: number): string {
   return "zernio_request_failed";
 }
 
-export function getExistingProfileIdFromError(error: unknown): string | null {
-  const shape = extractZernioErrorShape(error);
-  const existingProfileId = shape.details?.existingProfileId;
+function readExistingIdFromError(
+  error: unknown,
+  key: "existingProfileId" | "existingPostId",
+): string | null {
+  if (error instanceof AppError) {
+    const value = error.data?.[key];
+    if (typeof value === "string") {
+      return value;
+    }
+  }
 
-  return typeof existingProfileId === "string" ? existingProfileId : null;
+  const shape = extractZernioErrorShape(error);
+  const value = shape.details?.[key];
+
+  return typeof value === "string" ? value : null;
+}
+
+export function getExistingProfileIdFromError(error: unknown): string | null {
+  return readExistingIdFromError(error, "existingProfileId");
 }
 
 export function getExistingPostIdFromError(error: unknown): string | null {
-  const shape = extractZernioErrorShape(error);
-  const existingPostId = shape.details?.existingPostId;
-
-  return typeof existingPostId === "string" ? existingPostId : null;
+  return readExistingIdFromError(error, "existingPostId");
 }
 
 export function getRetryAfterSeconds(error: unknown): number {

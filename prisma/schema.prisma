@@ -16,6 +16,7 @@ model User {
   image                    String?
   role                     String                    @default("client")
   zernioProfileId          String?                   @unique
+  defaultTimezone          String?
   createdAt                DateTime                  @default(now())
   updatedAt                DateTime                  @updatedAt
   sessions                 Session[]
@@ -157,6 +158,10 @@ model Publication {
   zernioPostId     String?             @unique
   idempotencyKey   String              @unique
   status           String              @default("pending")
+  scheduledFor     DateTime?
+  timezone         String?
+  publishMode      String              @default("now")
+  zernioQueueId    String?
   createdAt        DateTime            @default(now())
   updatedAt        DateTime            @updatedAt
   targets          PublicationTarget[]
@@ -164,6 +169,7 @@ model Publication {
   @@index([userId])
   @@index([status])
   @@index([zernioPostId])
+  @@index([scheduledFor])
   @@map("publication")
 }
 

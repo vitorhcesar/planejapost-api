@@ -1,7 +1,11 @@
 import { getAuthContext } from "@/http/client";
 import { BaseHttpRoute, type THttpRoute } from "@/http/routes/base-http-route";
 import { AppError } from "@/domain/errors/app.error";
-import { createPublicationBodySchema } from "@/http/validation/schemas/publication.schema";
+import {
+  createPublicationBodySchema,
+  listPublicationsQuerySchema,
+  reschedulePublicationBodySchema,
+} from "@/http/validation/schemas/publication.schema";
 
 export class PublicationRoutes extends BaseHttpRoute {
   build(): THttpRoute {
@@ -12,11 +16,21 @@ export class PublicationRoutes extends BaseHttpRoute {
       createAndPublish,
       getThumbnail,
       get,
+      reschedule,
+      cancel,
     } = this.container.useCases.publication;
 
     route.get("/publications", async (context) => {
       const { authUserId } = getAuthContext(context);
-      const publications = await list.execute(authUserId!);
+      const parsedQuery = listPublicationsQuerySchema.safeParse(context.query);
+
+      if (!parsedQuery.success) {
+        throw new AppError("Parâmetros inválidos", 400, "validation", {
+          issues: parsedQuery.error.flatten(),
+        });
+      }
+
+      const publications = await list.execute(authUserId!, parsedQuery.data);
       return this.successResponse("OK", publications, 200);
     });
 
@@ -84,6 +98,52 @@ export class PublicationRoutes extends BaseHttpRoute {
       const publication = await get.execute(authUserId!, publicationId);
 
       return this.successResponse("OK", publication, 200);
+    });
+
+    route.patch("/publications/:publicationId/schedule", async (context) => {
+      const { authUserId } = getAuthContext(context);
+      const publicationId = context.params.publicationId;
+
+      if (!publicationId) {
+        throw new AppError(
+          "Publicação inválida",
+          400,
+          "invalid_publication_id",
+        );
+      }
+
+      const parsedBody = reschedulePublicationBodySchema.safeParse(context.body);
+
+      if (!parsedBody.success) {
+        throw new AppError("Dados inválidos", 400, "validation", {
+          issues: parsedBody.error.flatten(),
+        });
+      }
+
+      const publication = await reschedule.execute(
+        authUserId!,
+        publicationId,
+        parsedBody.data,
+      );
+
+      return this.successResponse("Agendamento atualizado", publication, 200);
+    });
+
+    route.delete("/publications/:publicationId", async (context) => {
+      const { authUserId } = getAuthContext(context);
+      const publicationId = context.params.publicationId;
+
+      if (!publicationId) {
+        throw new AppError(
+          "Publicação inválida",
+          400,
+          "invalid_publication_id",
+        );
+      }
+
+      const publication = await cancel.execute(authUserId!, publicationId);
+
+      return this.successResponse("Publicação cancelada", publication, 200);
     });
 
     return route;

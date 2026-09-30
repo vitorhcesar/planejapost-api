@@ -1,7 +1,9 @@
 import { z } from "zod";
 import {
   PublicationDestinationScopeEnum,
+  PublicationStatusEnum,
   PublicationTypeEnum,
+  PublishModeEnum,
 } from "@/domain/enums/publication.enum";
 
 export const createPublicationBodySchema = z
@@ -12,6 +14,9 @@ export const createPublicationBodySchema = z
     objectKey: z.string().min(1).optional(),
     objectKeys: z.array(z.string().min(1)).min(1).max(10).optional(),
     socialConnectedAccountIds: z.array(z.string().min(1)).optional(),
+    scheduledFor: z.string().min(1).optional(),
+    timezone: z.string().min(1).optional(),
+    publishMode: z.nativeEnum(PublishModeEnum).optional(),
   })
   .superRefine((data, context) => {
     const hasObjectKey = Boolean(data.objectKey);
@@ -36,6 +41,30 @@ export const createPublicationBodySchema = z
         path: ["socialConnectedAccountIds"],
       });
     }
+
+    const isScheduled =
+      data.publishMode === PublishModeEnum.SCHEDULED || Boolean(data.scheduledFor);
+
+    if (isScheduled && !data.scheduledFor) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "scheduledFor é obrigatório para agendamento",
+        path: ["scheduledFor"],
+      });
+    }
   });
 
+export const listPublicationsQuerySchema = z.object({
+  status: z.nativeEnum(PublicationStatusEnum).optional(),
+  from: z.string().min(1).optional(),
+  to: z.string().min(1).optional(),
+});
+
+export const reschedulePublicationBodySchema = z.object({
+  scheduledFor: z.string().min(1),
+  timezone: z.string().min(1).optional(),
+});
+
 export type TCreatePublicationBody = z.infer<typeof createPublicationBodySchema>;
+export type TListPublicationsQuery = z.infer<typeof listPublicationsQuerySchema>;
+export type TReschedulePublicationBody = z.infer<typeof reschedulePublicationBodySchema>;

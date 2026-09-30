@@ -71,6 +71,12 @@ export function extractPostWebhookPlatformEntries(
 ): IZernioPostWebhookPlatformEntry[] {
   const post = asRecord(payload.post);
 
+  return mapZernioPostRecordToPlatformEntries(post);
+}
+
+export function mapZernioPostRecordToPlatformEntries(
+  post: TZernioRecord,
+): IZernioPostWebhookPlatformEntry[] {
   return asRecordArray(post.platforms)
     .map((entry) => ({
       accountId: asNonEmptyString(entry.accountId) ?? "",
@@ -85,4 +91,24 @@ export function extractPostWebhookPlatformEntries(
         asNonEmptyString(entry.errorCategory) ?? asNonEmptyString(entry.errorCode),
     }))
     .filter((entry) => entry.accountId.length > 0);
+}
+
+export function mapZernioPostPlatformEntriesToWebhookEntries(
+  platforms: Array<{
+    accountId: string;
+    platformPostId: string | null;
+    publishedUrl: string | null;
+    status: string;
+    errorMessage: string | null;
+    errorCode: string | null;
+  }>,
+): IZernioPostWebhookPlatformEntry[] {
+  return platforms.map((entry) => ({
+    accountId: entry.accountId,
+    platformPostId: entry.platformPostId,
+    publishedUrl: entry.publishedUrl,
+    status: entry.status,
+    errorMessage: entry.errorMessage,
+    errorCode: entry.errorCode,
+  }));
 }
