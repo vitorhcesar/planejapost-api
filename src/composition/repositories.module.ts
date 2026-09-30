@@ -4,6 +4,7 @@ import type { IOmegaPayWebhookRepository } from "@/domain/repositories/omegapay-
 import type { IPublicationRepository } from "@/domain/repositories/publication.repository";
 import type { ISocialConnectedAccountRepository } from "@/domain/repositories/social-connected-account.repository";
 import type { ISocialConnectSessionRepository } from "@/domain/repositories/social-connect-session.repository";
+import type { IUserZernioQueueRepository } from "@/domain/repositories/user-zernio-queue.repository";
 import type { IUserRepository } from "@/domain/repositories/user.repository";
 import type { IWalletBillingRepository } from "@/domain/repositories/wallet-billing.repository";
 import type { IWalletRepository } from "@/domain/repositories/wallet.repository";
@@ -14,6 +15,7 @@ import { PrismaOmegaPayWebhookRepository } from "@/infra/database/prisma/reposit
 import { PrismaPublicationRepository } from "@/infra/database/prisma/repositories/prisma-publication.repository";
 import { PrismaSocialConnectedAccountRepository } from "@/infra/database/prisma/repositories/prisma-social-connected-account.repository";
 import { PrismaSocialConnectSessionRepository } from "@/infra/database/prisma/repositories/prisma-social-connect-session.repository";
+import { PrismaUserZernioQueueRepository } from "@/infra/database/prisma/repositories/prisma-user-zernio-queue.repository";
 import { PrismaUserRepository } from "@/infra/database/prisma/repositories/prisma-user.repository";
 import { PrismaWalletBillingRepository } from "@/infra/database/prisma/repositories/prisma-wallet-billing.repository";
 import { PrismaWalletRepository } from "@/infra/database/prisma/repositories/prisma-wallet.repository";
@@ -21,6 +23,7 @@ import { PrismaZernioWebhookEventRepository } from "@/infra/database/prisma/repo
 
 export interface IRepositories {
   user: IUserRepository;
+  userZernioQueue: IUserZernioQueueRepository;
   wallet: IWalletRepository;
   walletBilling: IWalletBillingRepository;
   publication: IPublicationRepository;
@@ -35,6 +38,7 @@ export interface IRepositories {
 export function createRepositories(): IRepositories {
   return {
     user: new PrismaUserRepository(),
+    userZernioQueue: new PrismaUserZernioQueueRepository(),
     wallet: new PrismaWalletRepository(),
     walletBilling: new PrismaWalletBillingRepository(),
     publication: new PrismaPublicationRepository(),

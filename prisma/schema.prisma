@@ -26,6 +26,7 @@ model User {
   publications             Publication[]
   socialConnectSessions    SocialConnectSession[]
   wallet                   Wallet?
+  publicationQueue         UserZernioQueue?
 
   @@unique([email])
   @@map("user")
@@ -193,6 +194,23 @@ model PublicationTarget {
   @@index([socialConnectedAccountId])
   @@index([status])
   @@map("publication_target")
+}
+
+model UserZernioQueue {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  zernioProfileId String
+  zernioQueueId   String
+  name            String   @default("Default")
+  timezone        String
+  slots           Json
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([zernioQueueId])
+  @@map("user_zernio_queue")
 }
 
 model ZernioWebhookEvent {

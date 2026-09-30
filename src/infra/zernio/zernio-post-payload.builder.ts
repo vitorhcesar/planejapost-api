@@ -34,9 +34,12 @@ export function buildZernioPostPayload(
     publishNow?: boolean;
     scheduledFor?: string;
     timezone?: string;
+    queuedFromProfile?: string;
+    queueId?: string;
   },
 ) {
   const publishNow = options?.publishNow ?? true;
+  const isQueued = Boolean(options?.queuedFromProfile);
 
   return {
     content: publication.caption,
@@ -44,9 +47,11 @@ export function buildZernioPostPayload(
       type: resolveMediaItemTypeFromUrl(url),
       url,
     })),
-    publishNow: publishNow ? true : undefined,
-    scheduledFor: options?.scheduledFor,
-    timezone: options?.timezone,
+    publishNow: !isQueued && publishNow ? true : undefined,
+    scheduledFor: isQueued ? undefined : options?.scheduledFor,
+    timezone: isQueued ? undefined : options?.timezone,
+    queuedFromProfile: options?.queuedFromProfile,
+    queueId: options?.queueId,
     metadata: {
       publicationId: publication.id,
     },

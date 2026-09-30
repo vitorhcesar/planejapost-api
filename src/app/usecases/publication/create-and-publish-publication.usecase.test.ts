@@ -6,15 +6,22 @@ import { Publication } from "@/domain/entities/publication.entity";
 import {
   PublicationDestinationScopeEnum,
   PublicationTypeEnum,
+  PublishModeEnum,
 } from "@/domain/enums/publication.enum";
 import { SocialAccountStatusEnum } from "@/domain/enums/social-account.enum";
 import { SocialPlatformEnum } from "@/domain/enums/social-platform.enum";
 import { AppError } from "@/domain/errors/app.error";
 import type { ISocialConnectedAccountRepository } from "@/domain/repositories/social-connected-account.repository";
 import type { IPublicationRepository } from "@/domain/repositories/publication.repository";
+import type { IUserZernioQueueRepository } from "@/domain/repositories/user-zernio-queue.repository";
+import type { IUserRepository } from "@/domain/repositories/user.repository";
 import type { IZernioMediaService } from "@/domain/zernio/zernio-media.service";
 import type { IZernioPostService } from "@/domain/zernio/zernio-post.service";
 import type { ITemporaryPublicationMediaStorage } from "@/domain/storages/temporary-publication-media.storage";
+import { User } from "@/domain/entities/user.entity";
+import { UserZernioQueue } from "@/domain/entities/user-zernio-queue.entity";
+import { AppRoleEnum } from "@/domain/enums/app-role.enum";
+import type { EnsureZernioProfileUseCase } from "@/app/usecases/zernio/ensure-zernio-profile.usecase";
 
 class InMemoryPublicationRepository implements IPublicationRepository {
   publications: Publication[] = [];
@@ -125,10 +132,17 @@ class InMemorySocialAccountRepository implements ISocialConnectedAccountReposito
 
 class MockZernioPostService implements IZernioPostService {
   calls: unknown[] = [];
+  nextResponse: Awaited<ReturnType<IZernioPostService["createPost"]>> = {
+    postId: "zernio-post-1",
+    status: "publishing",
+    scheduledFor: null,
+    timezone: null,
+    platforms: [],
+  };
 
   async createPost(input: Parameters<IZernioPostService["createPost"]>[0]) {
     this.calls.push(input);
-    return { postId: "zernio-post-1", status: "publishing", platforms: [] };
+    return this.nextResponse;
   }
 
   async getPost() {
@@ -138,7 +152,13 @@ class MockZernioPostService implements IZernioPostService {
   async cancelPost() {}
 
   async updatePost() {
-    return { postId: "zernio-post-1", status: "scheduled", platforms: [] };
+    return {
+      postId: "zernio-post-1",
+      status: "scheduled",
+      scheduledFor: null,
+      timezone: null,
+      platforms: [],
+    };
   }
 }
 
@@ -193,15 +213,46 @@ function createConnectedAccount(userId: string) {
   });
 }
 
+function createUseCase(input: {
+  publicationRepository?: InMemoryPublicationRepository;
+  socialRepository?: InMemorySocialAccountRepository;
+  zernioPostService?: MockZernioPostService;
+  userZernioQueueRepository?: IUserZernioQueueRepository;
+}) {
+  return new CreateAndPublishPublicationUseCase(
+    input.publicationRepository ?? new InMemoryPublicationRepository(),
+    input.socialRepository ?? new InMemorySocialAccountRepository(),
+    {
+      findById: async (userId: string) =>
+        User.restore({
+          id: userId,
+          name: "Jane",
+          email: "jane@example.com",
+          emailVerified: true,
+          image: null,
+          role: AppRoleEnum.CLIENT,
+          zernioProfileId: "zernio-profile-1",
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        }),
+    } as unknown as IUserRepository,
+    input.userZernioQueueRepository ??
+      ({
+        findByUserId: async () => null,
+        save: async (queue: UserZernioQueue) => queue,
+      } as unknown as IUserZernioQueueRepository),
+    {
+      execute: async () => "zernio-profile-1",
+    } as unknown as EnsureZernioProfileUseCase,
+    input.zernioPostService ?? new MockZernioPostService(),
+    new MockZernioMediaService(),
+    new MockTemporaryMediaStorage(),
+  );
+}
+
 describe("CreateAndPublishPublicationUseCase", () => {
   it("fails when there are no connected social accounts", async () => {
-    const useCase = new CreateAndPublishPublicationUseCase(
-      new InMemoryPublicationRepository(),
-      new InMemorySocialAccountRepository(),
-      new MockZernioPostService(),
-      new MockZernioMediaService(),
-      new MockTemporaryMediaStorage(),
-    );
+    const useCase = createUseCase({});
 
     try {
       await useCase.execute("user-1", {
@@ -220,13 +271,7 @@ describe("CreateAndPublishPublicationUseCase", () => {
     const socialRepository = new InMemorySocialAccountRepository();
     socialRepository.accounts = [createConnectedAccount("user-1")];
 
-    const useCase = new CreateAndPublishPublicationUseCase(
-      new InMemoryPublicationRepository(),
-      socialRepository,
-      new MockZernioPostService(),
-      new MockZernioMediaService(),
-      new MockTemporaryMediaStorage(),
-    );
+    const useCase = createUseCase({ socialRepository });
 
     try {
       await useCase.execute("user-1", {
@@ -246,13 +291,11 @@ describe("CreateAndPublishPublicationUseCase", () => {
     const zernioPostService = new MockZernioPostService();
     socialRepository.accounts = [createConnectedAccount("user-1")];
 
-    const useCase = new CreateAndPublishPublicationUseCase(
+    const useCase = createUseCase({
       publicationRepository,
       socialRepository,
       zernioPostService,
-      new MockZernioMediaService(),
-      new MockTemporaryMediaStorage(),
-    );
+    });
 
     const result = await useCase.execute("user-1", {
       type: PublicationTypeEnum.POST,
@@ -265,5 +308,53 @@ describe("CreateAndPublishPublicationUseCase", () => {
     expect(result.zernioPostId).toBe("zernio-post-1");
     expect(zernioPostService.calls).toHaveLength(1);
     expect(publicationRepository.publications).toHaveLength(1);
+  });
+
+  it("stores queue timezone when Zernio returns UTC", async () => {
+    const publicationRepository = new InMemoryPublicationRepository();
+    const socialRepository = new InMemorySocialAccountRepository();
+    const zernioPostService = new MockZernioPostService();
+    zernioPostService.nextResponse = {
+      postId: "zernio-post-queued",
+      status: "scheduled",
+      scheduledFor: "2026-09-30T18:50:00.000Z",
+      timezone: "UTC",
+      platforms: [],
+    };
+    socialRepository.accounts = [createConnectedAccount("user-1")];
+
+    const queue = UserZernioQueue.restore({
+      id: "queue-1",
+      userId: "user-1",
+      zernioProfileId: "zernio-profile-1",
+      zernioQueueId: "zernio-queue-1",
+      name: "Default",
+      timezone: "America/Sao_Paulo",
+      slots: [{ dayOfWeek: 1, time: "15:50" }],
+      active: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    const useCase = createUseCase({
+      publicationRepository,
+      socialRepository,
+      zernioPostService,
+      userZernioQueueRepository: {
+        findByUserId: async () => queue,
+        save: async (savedQueue: UserZernioQueue) => savedQueue,
+      } as unknown as IUserZernioQueueRepository,
+    });
+
+    const result = await useCase.execute("user-1", {
+      type: PublicationTypeEnum.POST,
+      destinationScope: PublicationDestinationScopeEnum.ALL,
+      objectKey: "temp/user-1/file.jpg",
+      publishMode: PublishModeEnum.QUEUED,
+    });
+
+    expect(result.publishMode).toBe(PublishModeEnum.QUEUED);
+    expect(result.timezone).toBe("America/Sao_Paulo");
+    expect(result.scheduledFor).toBe("2026-09-30T18:50:00.000Z");
   });
 });

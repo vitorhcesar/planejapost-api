@@ -303,6 +303,19 @@ export class Publication {
     this.props.updatedAt = new Date();
   }
 
+  markAsQueued(input: {
+    zernioQueueId: string;
+    scheduledFor: Date | null;
+    timezone: string;
+  }): void {
+    this.props.status = PublicationStatusEnum.SCHEDULED;
+    this.props.publishMode = PublishModeEnum.QUEUED;
+    this.props.zernioQueueId = input.zernioQueueId;
+    this.props.scheduledFor = input.scheduledFor;
+    this.props.timezone = input.timezone;
+    this.props.updatedAt = new Date();
+  }
+
   reschedule(scheduledFor: Date, timezone: string): void {
     this.props.scheduledFor = scheduledFor;
     this.props.timezone = timezone;

@@ -49,7 +49,7 @@ class StubZernioPostService implements IZernioPostService {
   constructor(private readonly post: Awaited<ReturnType<IZernioPostService["getPost"]>>) {}
 
   async createPost() {
-    return { postId: "post-1", status: "publishing", platforms: [] };
+    return { postId: "post-1", status: "publishing", scheduledFor: null, timezone: null, platforms: [] };
   }
 
   async getPost() {
@@ -59,7 +59,7 @@ class StubZernioPostService implements IZernioPostService {
   async cancelPost() {}
 
   async updatePost() {
-    return { postId: "post-1", status: "scheduled", platforms: [] };
+    return { postId: "post-1", status: "scheduled", scheduledFor: null, timezone: null, platforms: [] };
   }
 }
 
@@ -95,6 +95,8 @@ describe("reconcilePublicationFromZernio", () => {
     const zernioPostService = new StubZernioPostService({
       postId: "zernio-post-1",
       status: "published",
+      scheduledFor: null,
+      timezone: null,
       platforms: [
         {
           accountId: "zernio-acc-1",

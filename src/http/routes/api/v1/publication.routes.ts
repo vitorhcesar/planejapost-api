@@ -6,6 +6,7 @@ import {
   listPublicationsQuerySchema,
   reschedulePublicationBodySchema,
 } from "@/http/validation/schemas/publication.schema";
+import { upsertPublicationQueueBodySchema } from "@/http/validation/schemas/publication-queue.schema";
 
 export class PublicationRoutes extends BaseHttpRoute {
   build(): THttpRoute {
@@ -18,7 +19,29 @@ export class PublicationRoutes extends BaseHttpRoute {
       get,
       reschedule,
       cancel,
+      getQueue,
+      upsertQueue,
     } = this.container.useCases.publication;
+
+    route.get("/publication-queue", async (context) => {
+      const { authUserId } = getAuthContext(context);
+      const queue = await getQueue.execute(authUserId!);
+      return this.successResponse("OK", queue, 200);
+    });
+
+    route.put("/publication-queue", async (context) => {
+      const { authUserId } = getAuthContext(context);
+      const parsedBody = upsertPublicationQueueBodySchema.safeParse(context.body);
+
+      if (!parsedBody.success) {
+        throw new AppError("Dados inválidos", 400, "validation", {
+          issues: parsedBody.error.flatten(),
+        });
+      }
+
+      const queue = await upsertQueue.execute(authUserId!, parsedBody.data);
+      return this.successResponse("Horários salvos", queue, 200);
+    });
 
     route.get("/publications", async (context) => {
       const { authUserId } = getAuthContext(context);

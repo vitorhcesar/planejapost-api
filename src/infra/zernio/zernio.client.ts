@@ -4,6 +4,7 @@ import type { IZernioAccountService } from "@/domain/zernio/zernio-account.servi
 import type { IZernioConnectService } from "@/domain/zernio/zernio-connect.service";
 import type { IZernioMediaService } from "@/domain/zernio/zernio-media.service";
 import type { IZernioPostService } from "@/domain/zernio/zernio-post.service";
+import type { IZernioQueueService } from "@/domain/zernio/zernio-queue.service";
 import type { IZernioProfileService } from "@/domain/zernio/zernio-profile.service";
 import type {
   ICreateZernioPostInput,
@@ -21,6 +22,12 @@ import type {
   IZernioSelectLinkedInOrganizationInput,
   IZernioSelectionOption,
 } from "@/domain/zernio/zernio.types";
+import type {
+  IUpsertZernioQueueInput,
+  IZernioNextQueueSlot,
+  IZernioQueueSchedule,
+  IZernioQueueSlot,
+} from "@/domain/zernio/zernio-queue.types";
 import {
   getRetryAfterSeconds,
   mapZernioErrorToAppError,
@@ -40,6 +47,63 @@ function asRecordArray(value: unknown): TZernioRecord[] {
   return Array.isArray(value) ? value.map(asRecord) : [];
 }
 
+function mapZernioPost(post: TZernioRecord, fallbackPostId = ""): IZernioPost {
+  return {
+    postId: String(post._id ?? post.id ?? fallbackPostId),
+    status: String(post.status ?? "publishing"),
+    scheduledFor:
+      typeof post.scheduledFor === "string" ? post.scheduledFor : null,
+    timezone: typeof post.timezone === "string" ? post.timezone : null,
+    platforms: asRecordArray(post.platforms)
+      .map((entry) => ({
+        accountId: String(entry.accountId ?? ""),
+        platformPostId:
+          typeof entry.platformPostId === "string" ? entry.platformPostId : null,
+        publishedUrl:
+          typeof entry.publishedUrl === "string"
+            ? entry.publishedUrl
+            : typeof entry.platformPostUrl === "string"
+              ? entry.platformPostUrl
+              : null,
+        status: String(entry.status ?? ""),
+        errorMessage: typeof entry.error === "string" ? entry.error : null,
+        errorCode:
+          typeof entry.errorCategory === "string"
+            ? entry.errorCategory
+            : typeof entry.errorCode === "string"
+              ? entry.errorCode
+              : null,
+      }))
+      .filter((entry) => entry.accountId.length > 0),
+  };
+}
+
+function mapQueueSchedule(
+  schedule: TZernioRecord,
+  nextSlots: string[] = [],
+): IZernioQueueSchedule {
+  return {
+    queueId: String(schedule._id ?? schedule.id ?? ""),
+    profileId: String(schedule.profileId ?? ""),
+    name: String(schedule.name ?? "Default"),
+    timezone: String(schedule.timezone ?? "UTC"),
+    slots: asRecordArray(schedule.slots)
+      .map((slot) => ({
+        dayOfWeek: Number(slot.dayOfWeek ?? -1),
+        time: String(slot.time ?? ""),
+      }))
+      .filter(
+        (slot): slot is IZernioQueueSlot =>
+          slot.dayOfWeek >= 0 &&
+          slot.dayOfWeek <= 6 &&
+          /^\d{2}:\d{2}$/.test(slot.time),
+      ),
+    active: Boolean(schedule.active ?? true),
+    isDefault: Boolean(schedule.isDefault ?? false),
+    nextSlots,
+  };
+}
+
 type TZernioSdk = InstanceType<typeof Zernio>;
 
 export interface IZernioClient
@@ -47,7 +111,8 @@ export interface IZernioClient
     IZernioConnectService,
     IZernioAccountService,
     IZernioPostService,
-    IZernioMediaService {}
+    IZernioMediaService,
+    IZernioQueueService {}
 
 export class ZernioClient implements IZernioClient {
   private readonly sdk: TZernioSdk;
@@ -266,6 +331,8 @@ export class ZernioClient implements IZernioClient {
           publishNow: input.publishNow,
           scheduledFor: input.scheduledFor,
           timezone: input.timezone,
+          queuedFromProfile: input.queuedFromProfile,
+          queueId: input.queueId,
           metadata: input.metadata,
           platforms: input.platforms.map((platform) => ({
             platform: platform.platform,
@@ -279,11 +346,7 @@ export class ZernioClient implements IZernioClient {
 
     const post = asRecord(asRecord(response.data).post ?? response.data);
 
-    return {
-      postId: String(post._id ?? post.id ?? ""),
-      status: String(post.status ?? "publishing"),
-      platforms: [],
-    };
+    return mapZernioPost(post);
   }
 
   async updatePost(input: IUpdateZernioPostInput): Promise<IZernioPost> {
@@ -299,11 +362,7 @@ export class ZernioClient implements IZernioClient {
 
     const post = asRecord(asRecord(response.data).post ?? response.data);
 
-    return {
-      postId: String(post._id ?? post.id ?? input.postId),
-      status: String(post.status ?? "scheduled"),
-      platforms: [],
-    };
+    return mapZernioPost(post, input.postId);
   }
 
   async getPost(postId: string): Promise<IZernioPost | null> {
@@ -320,31 +379,7 @@ export class ZernioClient implements IZernioClient {
         return null;
       }
 
-      return {
-        postId: String(post._id ?? post.id ?? postId),
-        status: String(post.status ?? "publishing"),
-        platforms: asRecordArray(post.platforms)
-          .map((entry) => ({
-            accountId: String(entry.accountId ?? ""),
-            platformPostId:
-              typeof entry.platformPostId === "string" ? entry.platformPostId : null,
-            publishedUrl:
-              typeof entry.publishedUrl === "string"
-                ? entry.publishedUrl
-                : typeof entry.platformPostUrl === "string"
-                  ? entry.platformPostUrl
-                  : null,
-            status: String(entry.status ?? ""),
-            errorMessage: typeof entry.error === "string" ? entry.error : null,
-            errorCode:
-              typeof entry.errorCategory === "string"
-                ? entry.errorCategory
-                : typeof entry.errorCode === "string"
-                  ? entry.errorCode
-                  : null,
-          }))
-          .filter((entry) => entry.accountId.length > 0),
-      };
+      return mapZernioPost(post, postId);
     } catch (error) {
       if (error instanceof ZernioApiError && error.isNotFound()) {
         return null;
@@ -360,6 +395,102 @@ export class ZernioClient implements IZernioClient {
         path: { postId },
       }),
     );
+  }
+
+  async getQueueSchedule(input: {
+    profileId: string;
+    queueId?: string;
+  }): Promise<IZernioQueueSchedule | null> {
+    const response = await this.withRateLimitRetry(() =>
+      this.sdk.queue.listQueueSlots({
+        query: {
+          profileId: input.profileId,
+          ...(input.queueId ? { queueId: input.queueId } : {}),
+        },
+      }),
+    );
+
+    const data = asRecord(response.data);
+    const queues = asRecordArray(data.queues);
+    const schedule = asRecord(
+      data.schedule ?? (queues.length > 0 ? queues[0] : {}) ?? data,
+    );
+
+    if (!schedule._id && !schedule.id && !data.exists) {
+      return null;
+    }
+
+    const nextSlots = Array.isArray(data.nextSlots)
+      ? data.nextSlots.filter((value): value is string => typeof value === "string")
+      : [];
+
+    return mapQueueSchedule(schedule, nextSlots);
+  }
+
+  async upsertQueueSchedule(input: IUpsertZernioQueueInput): Promise<IZernioQueueSchedule> {
+    const body = {
+      profileId: input.profileId,
+      name: input.name,
+      timezone: input.timezone,
+      slots: input.slots,
+      active: input.active ?? true,
+    };
+
+    const response = input.queueId
+      ? await this.withRateLimitRetry(() =>
+          this.sdk.queue.updateQueueSlot({
+            body: {
+              ...body,
+              queueId: input.queueId,
+              setAsDefault: true,
+            },
+          }),
+        )
+      : await this.withRateLimitRetry(() =>
+          this.sdk.queue.createQueueSlot({
+            body,
+          }),
+        );
+
+    const data = asRecord(response.data);
+    const schedule = asRecord(data.schedule ?? data);
+    const nextSlots = Array.isArray(data.nextSlots)
+      ? data.nextSlots.filter((value): value is string => typeof value === "string")
+      : [];
+
+    return mapQueueSchedule(schedule, nextSlots);
+  }
+
+  async getNextQueueSlot(input: {
+    profileId: string;
+    queueId?: string;
+  }): Promise<IZernioNextQueueSlot | null> {
+    try {
+      const response = await this.withRateLimitRetry(() =>
+        this.sdk.queue.getNextQueueSlot({
+          query: {
+            profileId: input.profileId,
+            ...(input.queueId ? { queueId: input.queueId } : {}),
+          },
+        }),
+      );
+
+      const data = asRecord(response.data);
+      const nextSlot =
+        typeof data.nextSlot === "string"
+          ? data.nextSlot
+          : typeof data.scheduledFor === "string"
+            ? data.scheduledFor
+            : null;
+
+      return { scheduledFor: nextSlot };
+    } catch (error) {
+      if (error instanceof ZernioApiError && error.isNotFound()) {
+        return null;
+      }
+
+      throw mapZernioErrorToAppError(error);
+    }
   }
 
   async presignUpload(

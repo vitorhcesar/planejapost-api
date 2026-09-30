@@ -8,9 +8,13 @@ import {
 } from "@/domain/enums/publication.enum";
 import type { ISocialConnectedAccountRepository } from "@/domain/repositories/social-connected-account.repository";
 import type { IPublicationRepository } from "@/domain/repositories/publication.repository";
+import type { IUserZernioQueueRepository } from "@/domain/repositories/user-zernio-queue.repository";
+import type { IUserRepository } from "@/domain/repositories/user.repository";
 import type { ILogger } from "@/domain/services/logger.service";
 import type { IPublicationDto } from "@/app/usecases/publication/dto/publication.dto";
+import { parseZernioScheduledFor } from "@/app/usecases/publication/publication-queue.usecase";
 import { mapPublicationToDto } from "@/app/usecases/publication/map-publication-to-dto.util";
+import { EnsureZernioProfileUseCase } from "@/app/usecases/zernio/ensure-zernio-profile.usecase";
 import type { IZernioMediaService } from "@/domain/zernio/zernio-media.service";
 import type { IZernioPostService } from "@/domain/zernio/zernio-post.service";
 import type { ITemporaryPublicationMediaStorage } from "@/domain/storages/temporary-publication-media.storage";
@@ -42,6 +46,9 @@ export class CreateAndPublishPublicationUseCase {
   constructor(
     private readonly publicationRepository: IPublicationRepository,
     private readonly socialConnectedAccountRepository: ISocialConnectedAccountRepository,
+    private readonly userRepository: IUserRepository,
+    private readonly userZernioQueueRepository: IUserZernioQueueRepository,
+    private readonly ensureZernioProfileUseCase: EnsureZernioProfileUseCase,
     private readonly zernioPostService: IZernioPostService,
     private readonly zernioMediaService: IZernioMediaService,
     private readonly temporaryMediaStorage: ITemporaryPublicationMediaStorage,
@@ -51,8 +58,11 @@ export class CreateAndPublishPublicationUseCase {
     authUserId: string,
     input: ICreatePublicationInput,
   ): Promise<IPublicationDto> {
-    const isScheduled = this.isScheduledInput(input);
+    const publishMode = this.resolvePublishMode(input);
+    const isQueued = publishMode === PublishModeEnum.QUEUED;
+    const isScheduled = publishMode === PublishModeEnum.SCHEDULED;
     const scheduleInput = isScheduled ? this.resolveScheduleInput(input) : null;
+    const queueInput = isQueued ? await this.resolveQueueInput(authUserId) : null;
 
     const destinationAccounts = await this.resolveDestinationAccounts(
       authUserId,
@@ -98,9 +108,9 @@ export class CreateAndPublishPublicationUseCase {
       mediaUrl: mediaUrls[0]!,
       objectKey: objectKeys[0]!,
       objectKeys,
-      publishMode: isScheduled ? PublishModeEnum.SCHEDULED : PublishModeEnum.NOW,
+      publishMode,
       scheduledFor: scheduleInput?.scheduledForUtc ?? null,
-      timezone: scheduleInput?.timezone ?? null,
+      timezone: scheduleInput?.timezone ?? queueInput?.timezone ?? null,
       targets: destinationAccounts.map((account) => ({
         socialConnectedAccountId: account.id,
         platform: account.platform,
@@ -112,22 +122,22 @@ export class CreateAndPublishPublicationUseCase {
 
     try {
       const payload = buildZernioPostPayload(savedPublication, mediaUrls, {
-        publishNow: !isScheduled,
+        publishNow: !isScheduled && !isQueued,
         scheduledFor: scheduleInput?.scheduledForRaw,
         timezone: scheduleInput?.timezone,
+        queuedFromProfile: queueInput?.profileId,
+        queueId: queueInput?.queueId,
       });
       const zernioPost = await this.zernioPostService.createPost(payload);
 
       savedPublication.setZernioPostId(zernioPost.postId);
-
-      if (isScheduled && zernioPost.status.toLowerCase() === "scheduled") {
-        savedPublication.markAsScheduled(
-          scheduleInput!.scheduledForUtc,
-          scheduleInput!.timezone,
-        );
-      } else {
-        savedPublication.markAsProcessing();
-      }
+      this.applyZernioPostState(savedPublication, {
+        isScheduled,
+        isQueued,
+        scheduleInput,
+        queueInput,
+        zernioPost,
+      });
 
       await this.publicationRepository.save(savedPublication);
     } catch (error) {
@@ -135,15 +145,20 @@ export class CreateAndPublishPublicationUseCase {
 
       if (existingPostId) {
         savedPublication.setZernioPostId(existingPostId);
-
-        if (isScheduled) {
-          savedPublication.markAsScheduled(
-            scheduleInput!.scheduledForUtc,
-            scheduleInput!.timezone,
-          );
-        } else {
-          savedPublication.markAsProcessing();
-        }
+        this.applyZernioPostState(savedPublication, {
+          isScheduled,
+          isQueued,
+          scheduleInput,
+          queueInput,
+          zernioPost: {
+            postId: existingPostId,
+            status: isScheduled || isQueued ? "scheduled" : "publishing",
+            scheduledFor: scheduleInput?.scheduledForRaw ?? null,
+            timezone:
+              scheduleInput?.timezone ?? queueInput?.timezone ?? null,
+            platforms: [],
+          },
+        });
 
         await this.publicationRepository.save(savedPublication);
       } else {
@@ -155,12 +170,95 @@ export class CreateAndPublishPublicationUseCase {
     return mapPublicationToDto(refreshed ?? savedPublication);
   }
 
-  private isScheduledInput(input: ICreatePublicationInput): boolean {
-    if (input.publishMode === PublishModeEnum.SCHEDULED) {
-      return true;
+  private resolvePublishMode(input: ICreatePublicationInput): PublishModeEnum {
+    if (input.publishMode === PublishModeEnum.QUEUED) {
+      return PublishModeEnum.QUEUED;
     }
 
-    return Boolean(input.scheduledFor);
+    if (input.publishMode === PublishModeEnum.SCHEDULED || input.scheduledFor) {
+      return PublishModeEnum.SCHEDULED;
+    }
+
+    return PublishModeEnum.NOW;
+  }
+
+  private async resolveQueueInput(authUserId: string): Promise<{
+    profileId: string;
+    queueId: string;
+    timezone: string;
+  }> {
+    const user = await this.userRepository.findById(authUserId);
+
+    if (!user) {
+      throw new AppError("Usuário não encontrado", 404, "user_not_found");
+    }
+
+    const queue = await this.userZernioQueueRepository.findByUserId(authUserId);
+
+    if (!queue || !queue.active || queue.slots.length === 0) {
+      throw new AppError(
+        "Configure os horários de publicação antes de usar a fila",
+        400,
+        "publication_queue_not_configured",
+      );
+    }
+
+    const profileId = await this.ensureZernioProfileUseCase.execute(authUserId);
+
+    return {
+      profileId,
+      queueId: queue.zernioQueueId,
+      timezone: queue.timezone,
+    };
+  }
+
+  private applyZernioPostState(
+    publication: Publication,
+    input: {
+      isScheduled: boolean;
+      isQueued: boolean;
+      scheduleInput: {
+        scheduledForRaw: string;
+        scheduledForUtc: Date;
+        timezone: string;
+      } | null;
+      queueInput: {
+        profileId: string;
+        queueId: string;
+        timezone: string;
+      } | null;
+      zernioPost: {
+        postId: string;
+        status: string;
+        scheduledFor: string | null;
+        timezone: string | null;
+        platforms: unknown[];
+      };
+    },
+  ): void {
+    const normalizedStatus = input.zernioPost.status.toLowerCase();
+
+    if (input.isQueued && input.queueInput) {
+      publication.markAsQueued({
+        zernioQueueId: input.queueInput.queueId,
+        scheduledFor: parseZernioScheduledFor(
+          input.zernioPost.scheduledFor,
+          input.queueInput.timezone,
+        ),
+        timezone: input.queueInput.timezone,
+      });
+      return;
+    }
+
+    if (input.isScheduled && normalizedStatus === "scheduled" && input.scheduleInput) {
+      publication.markAsScheduled(
+        input.scheduleInput.scheduledForUtc,
+        input.scheduleInput.timezone,
+      );
+      return;
+    }
+
+    publication.markAsProcessing();
   }
 
   private resolveScheduleInput(input: ICreatePublicationInput): {

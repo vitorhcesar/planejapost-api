@@ -26,6 +26,10 @@ import {
   ReschedulePublicationUseCase,
 } from "@/app/usecases/publication/schedule-publication.usecase";
 import {
+  GetPublicationQueueUseCase,
+  UpsertPublicationQueueUseCase,
+} from "@/app/usecases/publication/publication-queue.usecase";
+import {
   CompleteSocialConnectUseCase,
   CreateSocialConnectSessionUseCase,
   DisconnectSocialAccountUseCase,
@@ -60,6 +64,8 @@ export interface IUseCases {
     get: GetPublicationUseCase;
     reschedule: ReschedulePublicationUseCase;
     cancel: CancelPublicationUseCase;
+    getQueue: GetPublicationQueueUseCase;
+    upsertQueue: UpsertPublicationQueueUseCase;
   };
   wallet: {
     getBalance: GetWalletBalanceUseCase;
@@ -141,6 +147,9 @@ export function createUseCases(
       createAndPublish: new CreateAndPublishPublicationUseCase(
         repositories.publication,
         repositories.socialConnectedAccount,
+        repositories.user,
+        repositories.userZernioQueue,
+        ensureZernioProfile,
         infrastructure.zernioClient,
         infrastructure.zernioClient,
         infrastructure.temporaryMediaStorage,
@@ -157,6 +166,18 @@ export function createUseCases(
       ),
       cancel: new CancelPublicationUseCase(
         repositories.publication,
+        infrastructure.zernioClient,
+      ),
+      getQueue: new GetPublicationQueueUseCase(
+        repositories.user,
+        repositories.userZernioQueue,
+        ensureZernioProfile,
+        infrastructure.zernioClient,
+      ),
+      upsertQueue: new UpsertPublicationQueueUseCase(
+        repositories.user,
+        repositories.userZernioQueue,
+        ensureZernioProfile,
         infrastructure.zernioClient,
       ),
     },

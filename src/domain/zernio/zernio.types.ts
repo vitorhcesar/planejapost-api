@@ -72,6 +72,8 @@ export interface ICreateZernioPostInput {
   publishNow?: boolean;
   scheduledFor?: string;
   timezone?: string;
+  queuedFromProfile?: string;
+  queueId?: string;
   platforms: IZernioPostPlatformInput[];
   idempotencyKey: string;
   metadata?: Record<string, unknown>;
@@ -96,6 +98,8 @@ export interface IZernioPostPlatformEntry {
 export interface IZernioPost {
   postId: string;
   status: string;
+  scheduledFor: string | null;
+  timezone: string | null;
   platforms: IZernioPostPlatformEntry[];
 }
 
