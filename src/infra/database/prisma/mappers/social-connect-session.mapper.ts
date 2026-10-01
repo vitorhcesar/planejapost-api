@@ -11,6 +11,7 @@ export class SocialConnectSessionMapper {
     return SocialConnectSession.restore({
       id: row.id,
       userId: row.userId,
+      workspaceId: row.workspaceId,
       accountSlotId: row.accountSlotId,
       platform: SocialConnectSessionMapper.toPlatform(row.platform),
       zernioProfileId: row.zernioProfileId,
@@ -30,6 +31,7 @@ export class SocialConnectSessionMapper {
 
     return {
       userId: data.userId,
+      workspaceId: data.workspaceId,
       accountSlotId: data.accountSlotId,
       platform: data.platform,
       zernioProfileId: data.zernioProfileId,

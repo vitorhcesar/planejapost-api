@@ -4,10 +4,9 @@ name: planejapost
 #
 # Domínio público: https://app.planejapost.com.br (frontend) / https://api.planejapost.com.br (API)
 #
-# Conexões internas (app → banco, redis, minio) usam os nomes dos containers:
+# Conexões internas (app → banco, redis) usam os nomes dos containers:
 #   DATABASE_URL   = postgresql://USER:PASS@planejapost-postgres:5432/DB?schema=public
 #   REDIS_HOST     = planejapost-redis
-#   MINIO_ENDPOINT = planejapost-minio
 #
 # Apenas a porta da aplicação (PORT) é exposta para o host/proxy reverso.
 
@@ -29,8 +28,6 @@ services:
         condition: service_healthy
       planejapost-redis:
         condition: service_healthy
-      planejapost-minio:
-        condition: service_started
     networks:
       - planejapost-network
 
@@ -70,23 +67,6 @@ services:
     networks:
       - planejapost-network
 
-  # ─── MinIO ───────────────────────────────────────────────────────────────────
-  planejapost-minio:
-    image: minio/minio:RELEASE.2024-01-16T16-07-38Z
-    container_name: planejapost-minio
-    restart: unless-stopped
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
-    command: server /data --console-address ":9001"
-    volumes:
-      - planejapost-minio-data:/data
-    # Console de administração (opcional — remova se não precisar de acesso externo)
-    ports:
-      - "9001:9001"
-    networks:
-      - planejapost-network
-
 networks:
   planejapost-network:
     driver: bridge
@@ -94,4 +74,3 @@ networks:
 volumes:
   planejapost-postgres-data:
   planejapost-redis-data:
-  planejapost-minio-data:

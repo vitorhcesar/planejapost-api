@@ -8,7 +8,11 @@ export interface ISocialConnectedAccountRepository {
     id: string,
     userId: string,
   ): Promise<SocialConnectedAccount | null>;
-  findByUserId(userId: string): Promise<SocialConnectedAccount[]>;
+  findByUserId(
+    userId: string,
+    filters?: { workspaceId?: string },
+  ): Promise<SocialConnectedAccount[]>;
+  findConnectedByWorkspaceId(workspaceId: string): Promise<SocialConnectedAccount[]>;
   findByUserIdAndZernioAccountId(
     userId: string,
     zernioAccountId: string,

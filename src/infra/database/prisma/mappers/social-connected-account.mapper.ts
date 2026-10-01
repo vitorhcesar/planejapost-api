@@ -14,6 +14,7 @@ export class SocialConnectedAccountMapper {
     return SocialConnectedAccount.restore({
       id: row.id,
       userId: row.userId,
+      workspaceId: row.workspaceId,
       accountSlotId: null,
       platform: SocialConnectedAccountMapper.toPlatform(row.platform),
       zernioAccountId: row.zernioAccountId,
@@ -40,6 +41,7 @@ export class SocialConnectedAccountMapper {
 
     return {
       userId: data.userId,
+      workspaceId: data.workspaceId,
       platform: data.platform,
       zernioAccountId: data.zernioAccountId,
       zernioProfileId: data.zernioProfileId,
@@ -59,6 +61,7 @@ export class SocialConnectedAccountMapper {
     const data = account.toObject();
 
     return {
+      workspaceId: data.workspaceId,
       platform: data.platform,
       username: data.username,
       displayName: data.displayName,

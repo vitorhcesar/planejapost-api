@@ -6,6 +6,7 @@ import type { ISocialConnectedAccountRepository } from "@/domain/repositories/so
 import type { ISocialConnectSessionRepository } from "@/domain/repositories/social-connect-session.repository";
 import type { IUserZernioQueueRepository } from "@/domain/repositories/user-zernio-queue.repository";
 import type { IUserRepository } from "@/domain/repositories/user.repository";
+import type { IWorkspaceRepository } from "@/domain/repositories/workspace.repository";
 import type { IWalletBillingRepository } from "@/domain/repositories/wallet-billing.repository";
 import type { IWalletRepository } from "@/domain/repositories/wallet.repository";
 import type { IZernioWebhookEventRepository } from "@/domain/repositories/zernio-webhook-event.repository";
@@ -17,6 +18,7 @@ import { PrismaSocialConnectedAccountRepository } from "@/infra/database/prisma/
 import { PrismaSocialConnectSessionRepository } from "@/infra/database/prisma/repositories/prisma-social-connect-session.repository";
 import { PrismaUserZernioQueueRepository } from "@/infra/database/prisma/repositories/prisma-user-zernio-queue.repository";
 import { PrismaUserRepository } from "@/infra/database/prisma/repositories/prisma-user.repository";
+import { PrismaWorkspaceRepository } from "@/infra/database/prisma/repositories/prisma-workspace.repository";
 import { PrismaWalletBillingRepository } from "@/infra/database/prisma/repositories/prisma-wallet-billing.repository";
 import { PrismaWalletRepository } from "@/infra/database/prisma/repositories/prisma-wallet.repository";
 import { PrismaZernioWebhookEventRepository } from "@/infra/database/prisma/repositories/prisma-zernio-webhook-event.repository";
@@ -33,6 +35,7 @@ export interface IRepositories {
   accountSlot: IAccountSlotRepository;
   omegaPayWebhook: IOmegaPayWebhookRepository;
   emailVerificationOtp: IEmailVerificationOtpRepository;
+  workspace: IWorkspaceRepository;
 }
 
 export function createRepositories(): IRepositories {
@@ -48,5 +51,6 @@ export function createRepositories(): IRepositories {
     accountSlot: new PrismaAccountSlotRepository(),
     omegaPayWebhook: new PrismaOmegaPayWebhookRepository(),
     emailVerificationOtp: new PrismaEmailVerificationOtpRepository(),
+    workspace: new PrismaWorkspaceRepository(),
   };
 }

@@ -1,29 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { UploadPublicationMediaUseCase } from "@/app/usecases/publication/upload-publication-media.usecase";
 import { AppError } from "@/domain/errors/app.error";
-import type {
-  ITemporaryPublicationMediaStorage,
-  IUploadTemporaryMediaInput,
-} from "@/domain/storages/temporary-publication-media.storage";
 import type { IZernioMediaService } from "@/domain/zernio/zernio-media.service";
-
-class InMemoryTemporaryMediaStorage {
-  uploads: IUploadTemporaryMediaInput[] = [];
-
-  async upload(input: IUploadTemporaryMediaInput) {
-    this.uploads.push(input);
-  }
-
-  async getStream() {
-    throw new Error("not implemented");
-  }
-
-  async delete() {}
-
-  buildObjectKey(userId: string, originalFilename: string) {
-    return `temp/${userId}/${originalFilename}`;
-  }
-}
 
 class MockZernioMediaService implements IZernioMediaService {
   uploads: Array<{ uploadUrl: string; contentType: string }> = [];
@@ -68,11 +46,7 @@ function createFile(input: {
 
 describe("UploadPublicationMediaUseCase", () => {
   it("rejects unsupported mime types", async () => {
-    const storage = new InMemoryTemporaryMediaStorage();
-    const useCase = new UploadPublicationMediaUseCase(
-      storage as unknown as ITemporaryPublicationMediaStorage,
-      new MockZernioMediaService(),
-    );
+    const useCase = new UploadPublicationMediaUseCase(new MockZernioMediaService());
 
     try {
       await useCase.execute(
@@ -91,11 +65,7 @@ describe("UploadPublicationMediaUseCase", () => {
   });
 
   it("rejects files larger than 100 MB", async () => {
-    const storage = new InMemoryTemporaryMediaStorage();
-    const useCase = new UploadPublicationMediaUseCase(
-      storage as unknown as ITemporaryPublicationMediaStorage,
-      new MockZernioMediaService(),
-    );
+    const useCase = new UploadPublicationMediaUseCase(new MockZernioMediaService());
 
     try {
       await useCase.execute(
@@ -113,13 +83,9 @@ describe("UploadPublicationMediaUseCase", () => {
     }
   });
 
-  it("uploads valid media and returns object key and public url", async () => {
-    const storage = new InMemoryTemporaryMediaStorage();
+  it("uploads valid media and returns public url", async () => {
     const zernioMedia = new MockZernioMediaService();
-    const useCase = new UploadPublicationMediaUseCase(
-      storage as unknown as ITemporaryPublicationMediaStorage,
-      zernioMedia,
-    );
+    const useCase = new UploadPublicationMediaUseCase(zernioMedia);
 
     const result = await useCase.execute(
       "user-1",
@@ -130,9 +96,7 @@ describe("UploadPublicationMediaUseCase", () => {
       }),
     );
 
-    expect(result.objectKey).toBe("temp/user-1/photo.jpg");
     expect(result.publicUrl).toBe("https://media.example.com/file.jpg");
-    expect(storage.uploads).toHaveLength(1);
     expect(zernioMedia.uploads).toHaveLength(1);
   });
 });

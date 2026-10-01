@@ -44,6 +44,14 @@ import { GetWalletBalanceUseCase } from "@/app/usecases/wallet/get-wallet-balanc
 import { ProcessWalletRechargeFromWebhookUseCase } from "@/app/usecases/wallet/process-wallet-recharge-from-webhook.usecase";
 import { EnsureZernioProfileUseCase } from "@/app/usecases/zernio/ensure-zernio-profile.usecase";
 import { HandleZernioWebhookUseCase } from "@/app/usecases/zernio/handle-zernio-webhook.usecase";
+import {
+  ArchiveWorkspaceUseCase,
+  CreateWorkspaceUseCase,
+  EnsureDefaultWorkspaceUseCase,
+  ListWorkspacesUseCase,
+  MoveSocialAccountToWorkspaceUseCase,
+  UpdateWorkspaceUseCase,
+} from "@/app/usecases/workspace/workspace.usecases";
 import type { IInfrastructure } from "@/composition/infrastructure.module";
 import type { IRepositories } from "@/composition/repositories.module";
 
@@ -85,6 +93,14 @@ export interface IUseCases {
     listConnectedAccounts: ListSocialConnectedAccountsUseCase;
     disconnectAccount: DisconnectSocialAccountUseCase;
     listSelectionOptions: ListSocialConnectSelectionOptionsUseCase;
+    moveAccountToWorkspace: MoveSocialAccountToWorkspaceUseCase;
+  };
+  workspace: {
+    ensureDefault: EnsureDefaultWorkspaceUseCase;
+    list: ListWorkspacesUseCase;
+    create: CreateWorkspaceUseCase;
+    update: UpdateWorkspaceUseCase;
+    archive: ArchiveWorkspaceUseCase;
   };
   zernio: {
     ensureProfile: EnsureZernioProfileUseCase;
@@ -118,6 +134,10 @@ export function createUseCases(
     infrastructure.zernioClient,
   );
 
+  const ensureDefaultWorkspace = new EnsureDefaultWorkspaceUseCase(
+    repositories.workspace,
+  );
+
   return {
     user: {
       getAuthenticatedUser: new GetAuthenticatedUserUseCase(repositories.user),
@@ -140,19 +160,16 @@ export function createUseCases(
         infrastructure.logger,
         infrastructure.zernioClient,
       ),
-      uploadMedia: new UploadPublicationMediaUseCase(
-        infrastructure.temporaryMediaStorage,
-        infrastructure.zernioClient,
-      ),
+      uploadMedia: new UploadPublicationMediaUseCase(infrastructure.zernioClient),
       createAndPublish: new CreateAndPublishPublicationUseCase(
         repositories.publication,
         repositories.socialConnectedAccount,
+        repositories.workspace,
+        ensureDefaultWorkspace,
         repositories.user,
         repositories.userZernioQueue,
         ensureZernioProfile,
         infrastructure.zernioClient,
-        infrastructure.zernioClient,
-        infrastructure.temporaryMediaStorage,
       ),
       getThumbnail: new GetPublicationThumbnailUseCase(repositories.publication),
       get: new GetPublicationUseCase(
@@ -207,9 +224,11 @@ export function createUseCases(
     social: {
       createConnectSession: new CreateSocialConnectSessionUseCase(
         ensureZernioProfile,
+        ensureDefaultWorkspace,
         repositories.socialConnectSession,
         repositories.socialConnectedAccount,
         repositories.accountSlot,
+        repositories.workspace,
         infrastructure.zernioClient,
         infrastructure.frontendOrigin,
       ),
@@ -217,12 +236,14 @@ export function createUseCases(
         repositories.socialConnectSession,
         repositories.socialConnectedAccount,
         repositories.accountSlot,
+        repositories.workspace,
         infrastructure.zernioClient,
         infrastructure.zernioClient,
       ),
       listConnectedAccounts: new ListSocialConnectedAccountsUseCase(
         repositories.socialConnectedAccount,
         repositories.accountSlot,
+        repositories.workspace,
       ),
       disconnectAccount: new DisconnectSocialAccountUseCase(
         repositories.socialConnectedAccount,
@@ -233,6 +254,20 @@ export function createUseCases(
         repositories.socialConnectSession,
         infrastructure.zernioClient,
       ),
+      moveAccountToWorkspace: new MoveSocialAccountToWorkspaceUseCase(
+        repositories.workspace,
+        repositories.socialConnectedAccount,
+      ),
+    },
+    workspace: {
+      ensureDefault: ensureDefaultWorkspace,
+      list: new ListWorkspacesUseCase(
+        repositories.workspace,
+        ensureDefaultWorkspace,
+      ),
+      create: new CreateWorkspaceUseCase(repositories.workspace),
+      update: new UpdateWorkspaceUseCase(repositories.workspace),
+      archive: new ArchiveWorkspaceUseCase(repositories.workspace),
     },
     zernio: {
       ensureProfile: ensureZernioProfile,

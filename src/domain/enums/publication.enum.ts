@@ -5,6 +5,7 @@ export enum PublicationTypeEnum {
 
 export enum PublicationDestinationScopeEnum {
   ALL = "all",
+  WORKSPACE = "workspace",
   SELECTED = "selected",
 }
 

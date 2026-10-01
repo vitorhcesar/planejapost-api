@@ -34,9 +34,30 @@ export class PrismaSocialConnectedAccountRepository
     return row ? this.mapRow(row) : null;
   }
 
-  async findByUserId(userId: string): Promise<SocialConnectedAccount[]> {
+  async findByUserId(
+    userId: string,
+    filters: { workspaceId?: string } = {},
+  ): Promise<SocialConnectedAccount[]> {
     const rows = await this.getPrismaClient().socialConnectedAccount.findMany({
-      where: { userId },
+      where: {
+        userId,
+        ...(filters.workspaceId ? { workspaceId: filters.workspaceId } : {}),
+      },
+      include: { accountSlot: true },
+      orderBy: { createdAt: "desc" },
+    });
+
+    return rows.map((row) => this.mapRow(row));
+  }
+
+  async findConnectedByWorkspaceId(
+    workspaceId: string,
+  ): Promise<SocialConnectedAccount[]> {
+    const rows = await this.getPrismaClient().socialConnectedAccount.findMany({
+      where: {
+        workspaceId,
+        status: "connected",
+      },
       include: { accountSlot: true },
       orderBy: { createdAt: "desc" },
     });

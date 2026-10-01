@@ -7,6 +7,8 @@ export interface IAccountSlotAccountDto {
   status: string;
   canPost: boolean;
   needsReconnect: boolean;
+  workspaceId: string;
+  workspaceName: string;
 }
 
 export interface IAccountSlotDto {

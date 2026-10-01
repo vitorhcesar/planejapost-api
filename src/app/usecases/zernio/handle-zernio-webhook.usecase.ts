@@ -210,6 +210,7 @@ export class HandleZernioWebhookUseCase {
     if (socialAccount) {
       socialAccount.reconnect({
         accountSlotId: slot.id,
+        workspaceId: pendingSession.workspaceId,
         username: username || socialAccount.username,
         displayName: displayName ?? socialAccount.displayName,
         avatarUrl: avatarUrl ?? socialAccount.avatarUrl,
@@ -220,6 +221,7 @@ export class HandleZernioWebhookUseCase {
     } else {
       socialAccount = SocialConnectedAccount.create({
         userId: pendingSession.userId,
+        workspaceId: pendingSession.workspaceId,
         accountSlotId: slot.id,
         platform: platformValue,
         zernioAccountId: accountId,

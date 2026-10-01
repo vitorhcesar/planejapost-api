@@ -15,15 +15,6 @@ const envSchema = z.object({
   USE_NGROK: z.enum(["true", "false"]).optional(),
   NGROK_AUTHTOKEN: z.string().min(1).optional(),
   PUBLIC_API_URL: z.string().url(),
-  MINIO_ENDPOINT: z.string().min(1).default("localhost"),
-  MINIO_PORT: z.coerce.number().int().positive().default(9000),
-  MINIO_ACCESS_KEY: z.string().min(1),
-  MINIO_SECRET_KEY: z.string().min(1),
-  MINIO_BUCKET: z.string().min(1).default("planejapost-temp"),
-  MINIO_USE_SSL: z
-    .string()
-    .transform((v) => v === "true")
-    .default("false"),
   REDIS_HOST: z.string().min(1).default("localhost"),
   REDIS_PORT: z.coerce.number().int().positive().default(6379),
   OMEGAPAY_PUBLIC_KEY: z.string().min(1).optional(),
@@ -119,30 +110,6 @@ export class EnvService {
 
   get publicApiUrl(): string {
     return this.env.PUBLIC_API_URL;
-  }
-
-  get minioEndpoint(): string {
-    return this.env.MINIO_ENDPOINT;
-  }
-
-  get minioPort(): number {
-    return this.env.MINIO_PORT;
-  }
-
-  get minioAccessKey(): string {
-    return this.env.MINIO_ACCESS_KEY;
-  }
-
-  get minioSecretKey(): string {
-    return this.env.MINIO_SECRET_KEY;
-  }
-
-  get minioBucket(): string {
-    return this.env.MINIO_BUCKET;
-  }
-
-  get minioUseSsl(): boolean {
-    return this.env.MINIO_USE_SSL;
   }
 
   get redisHost(): string {

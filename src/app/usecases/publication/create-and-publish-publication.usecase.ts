@@ -10,14 +10,16 @@ import type { ISocialConnectedAccountRepository } from "@/domain/repositories/so
 import type { IPublicationRepository } from "@/domain/repositories/publication.repository";
 import type { IUserZernioQueueRepository } from "@/domain/repositories/user-zernio-queue.repository";
 import type { IUserRepository } from "@/domain/repositories/user.repository";
+import type { IWorkspaceRepository } from "@/domain/repositories/workspace.repository";
+import { EnsureDefaultWorkspaceUseCase } from "@/app/usecases/workspace/workspace.usecases";
 import type { ILogger } from "@/domain/services/logger.service";
 import type { IPublicationDto } from "@/app/usecases/publication/dto/publication.dto";
 import { parseZernioScheduledFor } from "@/app/usecases/publication/publication-queue.usecase";
 import { mapPublicationToDto } from "@/app/usecases/publication/map-publication-to-dto.util";
 import { EnsureZernioProfileUseCase } from "@/app/usecases/zernio/ensure-zernio-profile.usecase";
-import type { IZernioMediaService } from "@/domain/zernio/zernio-media.service";
 import type { IZernioPostService } from "@/domain/zernio/zernio-post.service";
-import type { ITemporaryPublicationMediaStorage } from "@/domain/storages/temporary-publication-media.storage";
+import { assertCaptionWithinPlatformLimits } from "@/domain/utils/validate-publication-caption.util";
+import { assertValidMediaUrls } from "@/domain/utils/validate-media-url.util";
 import { buildZernioPostPayload } from "@/infra/zernio/zernio-post-payload.builder";
 import {
   getExistingPostIdFromError,
@@ -33,9 +35,10 @@ import {
 export interface ICreatePublicationInput {
   type: PublicationTypeEnum;
   destinationScope: PublicationDestinationScopeEnum;
+  workspaceId?: string;
   caption?: string | null;
-  objectKey?: string;
-  objectKeys?: string[];
+  mediaUrl?: string;
+  mediaUrls?: string[];
   socialConnectedAccountIds?: string[];
   scheduledFor?: string;
   timezone?: string;
@@ -46,12 +49,12 @@ export class CreateAndPublishPublicationUseCase {
   constructor(
     private readonly publicationRepository: IPublicationRepository,
     private readonly socialConnectedAccountRepository: ISocialConnectedAccountRepository,
+    private readonly workspaceRepository: IWorkspaceRepository,
+    private readonly ensureDefaultWorkspaceUseCase: EnsureDefaultWorkspaceUseCase,
     private readonly userRepository: IUserRepository,
     private readonly userZernioQueueRepository: IUserZernioQueueRepository,
     private readonly ensureZernioProfileUseCase: EnsureZernioProfileUseCase,
     private readonly zernioPostService: IZernioPostService,
-    private readonly zernioMediaService: IZernioMediaService,
-    private readonly temporaryMediaStorage: ITemporaryPublicationMediaStorage,
   ) {}
 
   async execute(
@@ -64,9 +67,15 @@ export class CreateAndPublishPublicationUseCase {
     const scheduleInput = isScheduled ? this.resolveScheduleInput(input) : null;
     const queueInput = isQueued ? await this.resolveQueueInput(authUserId) : null;
 
+    const publicationWorkspaceId = await this.resolvePublicationWorkspaceId(
+      authUserId,
+      input,
+    );
+
     const destinationAccounts = await this.resolveDestinationAccounts(
       authUserId,
       input,
+      publicationWorkspaceId,
     );
 
     if (destinationAccounts.length === 0) {
@@ -88,9 +97,14 @@ export class CreateAndPublishPublicationUseCase {
       );
     }
 
-    const objectKeys = this.resolveObjectKeys(input);
+    const mediaUrls = this.resolveMediaUrls(input);
 
-    if (objectKeys.length === 0) {
+    assertCaptionWithinPlatformLimits({
+      caption: input.caption,
+      platforms: destinationAccounts.map((account) => account.platform),
+    });
+
+    if (mediaUrls.length === 0) {
       throw new AppError(
         "Arquivo de mídia é obrigatório",
         400,
@@ -98,16 +112,15 @@ export class CreateAndPublishPublicationUseCase {
       );
     }
 
-    const mediaUrls = await this.resolveMediaUrls(authUserId, objectKeys);
-
     const publication = Publication.create({
       userId: authUserId,
+      workspaceId: publicationWorkspaceId,
       type: input.type,
       destinationScope: input.destinationScope,
       caption: input.caption,
       mediaUrl: mediaUrls[0]!,
-      objectKey: objectKeys[0]!,
-      objectKeys,
+      objectKey: mediaUrls[0]!,
+      objectKeys: mediaUrls,
       publishMode,
       scheduledFor: scheduleInput?.scheduledForUtc ?? null,
       timezone: scheduleInput?.timezone ?? queueInput?.timezone ?? null,
@@ -306,15 +319,54 @@ export class CreateAndPublishPublicationUseCase {
     };
   }
 
+  private async resolvePublicationWorkspaceId(
+    authUserId: string,
+    input: ICreatePublicationInput,
+  ): Promise<string | null> {
+    if (input.destinationScope !== PublicationDestinationScopeEnum.WORKSPACE) {
+      return input.workspaceId ?? null;
+    }
+
+    if (input.workspaceId) {
+      const workspace = await this.workspaceRepository.findActiveByIdAndUserId(
+        input.workspaceId,
+        authUserId,
+      );
+
+      if (!workspace) {
+        throw new AppError("Workspace não encontrado", 404, "workspace_not_found");
+      }
+
+      return workspace.id;
+    }
+
+    const defaultWorkspace =
+      await this.ensureDefaultWorkspaceUseCase.execute(authUserId);
+
+    return defaultWorkspace.id;
+  }
+
   private async resolveDestinationAccounts(
     authUserId: string,
     input: ICreatePublicationInput,
+    publicationWorkspaceId: string | null,
   ) {
     const connectedAccounts =
-      await this.socialConnectedAccountRepository.findConnectedByUserId(authUserId);
+      input.destinationScope === PublicationDestinationScopeEnum.WORKSPACE &&
+      publicationWorkspaceId
+        ? await this.socialConnectedAccountRepository.findConnectedByWorkspaceId(
+            publicationWorkspaceId,
+          )
+        : await this.socialConnectedAccountRepository.findConnectedByUserId(
+            authUserId,
+          );
 
     if (input.destinationScope === PublicationDestinationScopeEnum.ALL) {
       return connectedAccounts;
+    }
+
+    if (input.destinationScope === PublicationDestinationScopeEnum.WORKSPACE) {
+      return connectedAccounts.filter((account) => account.canPost);
     }
 
     const selectedIds = input.socialConnectedAccountIds ?? [];
@@ -342,60 +394,21 @@ export class CreateAndPublishPublicationUseCase {
     return connectedAccounts.filter((account) => selectedIds.includes(account.id));
   }
 
-  private resolveObjectKeys(input: ICreatePublicationInput): string[] {
-    if (input.objectKeys && input.objectKeys.length > 0) {
-      return input.objectKeys;
-    }
+  private resolveMediaUrls(input: ICreatePublicationInput): string[] {
+    const urls =
+      input.mediaUrls && input.mediaUrls.length > 0
+        ? input.mediaUrls
+        : input.mediaUrl
+          ? [input.mediaUrl]
+          : [];
 
-    if (input.objectKey) {
-      return [input.objectKey];
-    }
-
-    return [];
-  }
-
-  private async resolveMediaUrls(
-    authUserId: string,
-    objectKeys: string[],
-  ): Promise<string[]> {
-    const urls: string[] = [];
-
-    for (const objectKey of objectKeys) {
-      if (objectKey.startsWith("http://") || objectKey.startsWith("https://")) {
-        urls.push(objectKey);
-        continue;
-      }
-
-      const streamResult = await this.temporaryMediaStorage.getStream(objectKey);
-      const chunks: Buffer[] = [];
-
-      for await (const chunk of streamResult.stream) {
-        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-      }
-
-      const buffer = Buffer.concat(chunks);
-      const filename = objectKey.split("/").pop() ?? "media.bin";
-      const presigned = await this.zernioMediaService.presignUpload({
-        filename,
-        contentType: streamResult.contentType,
-        size: buffer.length,
-      });
-
-      await this.zernioMediaService.uploadToPresignedUrl({
-        uploadUrl: presigned.uploadUrl,
-        buffer,
-        contentType: streamResult.contentType,
-      });
-
-      urls.push(presigned.publicUrl);
-    }
-
-    return urls;
+    return assertValidMediaUrls(urls);
   }
 }
 
 export interface IListPublicationsInput {
   status?: string;
+  workspaceId?: string;
   from?: string;
   to?: string;
 }
@@ -415,6 +428,7 @@ export class ListPublicationsUseCase {
       authUserId,
       {
         status: filters.status as PublicationStatusEnum | undefined,
+        workspaceId: filters.workspaceId,
         from: filters.from ? new Date(filters.from) : undefined,
         to: filters.to ? new Date(filters.to) : undefined,
       },

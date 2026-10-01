@@ -18,6 +18,8 @@ import { AppError } from "@/domain/errors/app.error";
 import type { IAccountSlotRepository } from "@/domain/repositories/account-slot.repository";
 import type { ISocialConnectSessionRepository } from "@/domain/repositories/social-connect-session.repository";
 import type { ISocialConnectedAccountRepository } from "@/domain/repositories/social-connected-account.repository";
+import type { IWorkspaceRepository } from "@/domain/repositories/workspace.repository";
+import { EnsureDefaultWorkspaceUseCase } from "@/app/usecases/workspace/workspace.usecases";
 import type { IZernioAccountService } from "@/domain/zernio/zernio-account.service";
 import type { IZernioConnectService } from "@/domain/zernio/zernio-connect.service";
 import { randomBytes } from "node:crypto";
@@ -25,9 +27,11 @@ import { randomBytes } from "node:crypto";
 export class CreateSocialConnectSessionUseCase {
   constructor(
     private readonly ensureZernioProfileUseCase: EnsureZernioProfileUseCase,
+    private readonly ensureDefaultWorkspaceUseCase: EnsureDefaultWorkspaceUseCase,
     private readonly socialConnectSessionRepository: ISocialConnectSessionRepository,
     private readonly socialConnectedAccountRepository: ISocialConnectedAccountRepository,
     private readonly accountSlotRepository: IAccountSlotRepository,
+    private readonly workspaceRepository: IWorkspaceRepository,
     private readonly zernioConnectService: IZernioConnectService,
     private readonly frontendOrigin: string,
   ) {}
@@ -36,6 +40,7 @@ export class CreateSocialConnectSessionUseCase {
     userId: string;
     slotId: string;
     platform: string;
+    workspaceId?: string;
     loginMethod?: string;
   }): Promise<ISocialConnectSessionDto> {
     if (!isSocialPlatform(input.platform)) {
@@ -77,6 +82,17 @@ export class CreateSocialConnectSessionUseCase {
       input.userId,
     );
 
+    const workspace = input.workspaceId
+      ? await this.workspaceRepository.findActiveByIdAndUserId(
+          input.workspaceId,
+          input.userId,
+        )
+      : await this.ensureDefaultWorkspaceUseCase.execute(input.userId);
+
+    if (!workspace) {
+      throw new AppError("Workspace não encontrado", 404, "workspace_not_found");
+    }
+
     const mode = HEADLESS_SOCIAL_PLATFORMS.has(input.platform)
       ? ConnectModeEnum.HEADLESS
       : ConnectModeEnum.STANDARD;
@@ -85,6 +101,7 @@ export class CreateSocialConnectSessionUseCase {
 
     const session = SocialConnectSession.create({
       userId: input.userId,
+      workspaceId: workspace.id,
       accountSlotId: slot.id,
       platform: input.platform,
       zernioProfileId,
@@ -121,6 +138,7 @@ export class CompleteSocialConnectUseCase {
     private readonly socialConnectSessionRepository: ISocialConnectSessionRepository,
     private readonly socialConnectedAccountRepository: ISocialConnectedAccountRepository,
     private readonly accountSlotRepository: IAccountSlotRepository,
+    private readonly workspaceRepository: IWorkspaceRepository,
     private readonly zernioAccountService: IZernioAccountService,
     private readonly zernioConnectService: IZernioConnectService,
   ) {}
@@ -185,6 +203,7 @@ export class CompleteSocialConnectUseCase {
       return mapSocialConnectedAccountToDto(
         existingConnectedAccount,
         this.accountSlotRepository,
+        this.workspaceRepository,
       );
     }
 
@@ -268,6 +287,7 @@ export class CompleteSocialConnectUseCase {
     if (account) {
       account.reconnect({
         accountSlotId: slot.id,
+        workspaceId: session.workspaceId,
         username: zernioAccount.username || username,
         displayName: zernioAccount.displayName,
         avatarUrl: zernioAccount.avatarUrl,
@@ -278,6 +298,7 @@ export class CompleteSocialConnectUseCase {
     } else {
       account = SocialConnectedAccount.create({
         userId: input.userId,
+        workspaceId: session.workspaceId,
         accountSlotId: slot.id,
         platform: session.platform,
         zernioAccountId,
@@ -300,6 +321,7 @@ export class CompleteSocialConnectUseCase {
     return mapSocialConnectedAccountToDto(
       savedAccount,
       this.accountSlotRepository,
+      this.workspaceRepository,
     );
   }
 
@@ -425,15 +447,25 @@ export class ListSocialConnectedAccountsUseCase {
   constructor(
     private readonly socialConnectedAccountRepository: ISocialConnectedAccountRepository,
     private readonly accountSlotRepository: IAccountSlotRepository,
+    private readonly workspaceRepository: IWorkspaceRepository,
   ) {}
 
-  async execute(userId: string): Promise<ISocialConnectedAccountDto[]> {
-    const accounts =
-      await this.socialConnectedAccountRepository.findByUserId(userId);
+  async execute(
+    userId: string,
+    filters: { workspaceId?: string } = {},
+  ): Promise<ISocialConnectedAccountDto[]> {
+    const accounts = await this.socialConnectedAccountRepository.findByUserId(
+      userId,
+      filters,
+    );
 
     return Promise.all(
       accounts.map((account) =>
-        mapSocialConnectedAccountToDto(account, this.accountSlotRepository),
+        mapSocialConnectedAccountToDto(
+          account,
+          this.accountSlotRepository,
+          this.workspaceRepository,
+        ),
       ),
     );
   }

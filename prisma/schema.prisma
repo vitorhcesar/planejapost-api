@@ -21,6 +21,7 @@ model User {
   updatedAt                DateTime                  @updatedAt
   sessions                 Session[]
   accounts                 Account[]
+  workspaces               Workspace[]
   socialConnectedAccounts  SocialConnectedAccount[]
   accountSlots             AccountSlot[]
   publications             Publication[]
@@ -30,6 +31,29 @@ model User {
 
   @@unique([email])
   @@map("user")
+}
+
+model Workspace {
+  id                      String                   @id @default(cuid())
+  userId                  String
+  user                    User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name                    String
+  slug                    String
+  description             String?
+  color                   String?
+  isDefault               Boolean                  @default(false)
+  archivedAt              DateTime?
+  sortOrder               Int                      @default(0)
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  socialConnectedAccounts SocialConnectedAccount[]
+  socialConnectSessions   SocialConnectSession[]
+  publications            Publication[]
+
+  @@unique([userId, slug])
+  @@index([userId, archivedAt])
+  @@index([userId, isDefault])
+  @@map("workspace")
 }
 
 model Session {
@@ -84,6 +108,8 @@ model SocialConnectedAccount {
   id                String              @id @default(cuid())
   userId            String
   user              User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspaceId       String
+  workspace         Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
   platform          String
   zernioAccountId   String
   zernioProfileId   String
@@ -104,14 +130,17 @@ model SocialConnectedAccount {
   @@unique([userId, zernioAccountId])
   @@index([userId])
   @@index([userId, platform, status])
+  @@index([workspaceId, status])
   @@index([zernioAccountId])
   @@map("social_connected_account")
 }
 
 model SocialConnectSession {
-  id              String   @id @default(cuid())
+  id              String    @id @default(cuid())
   userId          String
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspaceId     String
+  workspace       Workspace @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
   accountSlotId   String
   platform        String
   zernioProfileId String
@@ -150,6 +179,8 @@ model Publication {
   id               String              @id @default(cuid())
   userId           String
   user             User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspaceId      String?
+  workspace        Workspace?          @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
   type             String
   destinationScope String
   caption          String?
@@ -168,6 +199,7 @@ model Publication {
   targets          PublicationTarget[]
 
   @@index([userId])
+  @@index([userId, workspaceId, createdAt])
   @@index([status])
   @@index([zernioPostId])
   @@index([scheduledFor])

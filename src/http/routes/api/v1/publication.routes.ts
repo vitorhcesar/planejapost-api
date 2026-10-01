@@ -67,11 +67,11 @@ export class PublicationRoutes extends BaseHttpRoute {
         throw new AppError("Campo 'file' é obrigatório", 400, "file_required");
       }
 
-      const { objectKey, publicUrl } = await uploadMedia.execute(authUserId!, file);
+      const { publicUrl } = await uploadMedia.execute(authUserId!, file);
 
       return this.successResponse(
         "Mídia enviada com sucesso",
-        { objectKey, publicUrl },
+        { publicUrl },
         201,
       );
     });

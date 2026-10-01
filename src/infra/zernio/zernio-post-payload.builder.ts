@@ -2,6 +2,21 @@ import type { PublicationTypeEnum } from "@/domain/enums/publication.enum";
 import type { SocialPlatformEnum } from "@/domain/enums/social-platform.enum";
 import type { Publication } from "@/domain/entities/publication.entity";
 
+export function buildDefaultZernioTiktokSettings(): Record<string, unknown> {
+  return {
+    privacy_level: "PUBLIC_TO_EVERYONE",
+    allow_comment: true,
+    allow_duet: true,
+    allow_stitch: true,
+    content_preview_confirmed: true,
+    express_consent_given: true,
+  };
+}
+
+export function publicationIncludesTiktokTarget(publication: Publication): boolean {
+  return publication.targets.some((target) => target.platform === "tiktok");
+}
+
 export function buildZernioPlatformSpecificData(input: {
   publicationType: PublicationTypeEnum;
   platform: SocialPlatformEnum;
@@ -63,6 +78,9 @@ export function buildZernioPostPayload(
         platform: target.platform,
       }),
     })),
+    tiktokSettings: publicationIncludesTiktokTarget(publication)
+      ? buildDefaultZernioTiktokSettings()
+      : undefined,
     idempotencyKey: publication.idempotencyKey,
   };
 }

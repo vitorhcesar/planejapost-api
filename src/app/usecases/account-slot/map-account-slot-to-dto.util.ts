@@ -17,6 +17,8 @@ function mapSocialAccountToDto(
     status: account.status,
     canPost: account.canPost,
     needsReconnect: account.needsReconnect,
+    workspaceId: account.workspaceId,
+    workspaceName: account.workspaceName,
   };
 }
 

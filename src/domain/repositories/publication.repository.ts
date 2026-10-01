@@ -3,6 +3,7 @@ import type { PublicationStatusEnum } from "@/domain/enums/publication.enum";
 
 export interface IPublicationListFilters {
   status?: PublicationStatusEnum;
+  workspaceId?: string;
   from?: Date;
   to?: Date;
 }

@@ -12,8 +12,8 @@ import { OmegaPayWebhookRoutes } from "@/http/routes/api/v1/omegapay-webhook.rou
 import { ZernioWebhookRoutes } from "@/http/routes/api/v1/zernio-webhook.routes";
 import { AccountSlotRoutes } from "@/http/routes/api/v1/account-slot.routes";
 import { EmailVerificationRoutes } from "@/http/routes/api/v1/email-verification.routes";
-import { PublicObjectRoutes } from "@/http/routes/api/v1/public-object.routes";
 import { SocialRoutes } from "@/http/routes/api/v1/social.routes";
+import { WorkspaceRoutes } from "@/http/routes/api/v1/workspace.routes";
 import { registerGlobalApiErrorHandler } from "@/http/utils/register-global-api-error-handler";
 import { registerHttpRequestLogger } from "@/http/utils/register-http-request-logger";
 import { logServerStartup } from "@/infra/logging/log-server-startup";
@@ -55,8 +55,6 @@ export class AppService {
         }),
       );
 
-    app.use(new PublicObjectRoutes(this.serverClient, this.container).build());
-
     app.group("/api/v1", (group) =>
       group
         .use(new HealthRoutes(this.serverClient, this.container).build())
@@ -65,6 +63,7 @@ export class AppService {
         .use(new UserRoutes(this.serverClient, this.container).build())
         .use(new EmailVerificationRoutes(this.serverClient, this.container).build())
         .use(new SocialRoutes(this.serverClient, this.container).build())
+        .use(new WorkspaceRoutes(this.serverClient, this.container).build())
         .use(new PublicationRoutes(this.serverClient, this.container).build())
         .use(new WalletRoutes(this.serverClient, this.container).build())
         .use(new AccountSlotRoutes(this.serverClient, this.container).build())

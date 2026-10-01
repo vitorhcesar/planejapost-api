@@ -148,6 +148,10 @@ class InMemorySocialConnectedAccountRepository implements ISocialConnectedAccoun
     return [];
   }
 
+  async findConnectedByWorkspaceId() {
+    return [];
+  }
+
   async save(account: SocialConnectedAccount) {
     this.account = account;
     if (!account.id) {
@@ -229,22 +233,31 @@ class StubZernioAccountService implements IZernioAccountService {
 
 const noopLogger = new NoopLogger();
 
-function createProcessingPublication(): Publication {
+function createProcessingPublication(
+  input: {
+    targets?: Array<{
+      socialConnectedAccountId: string;
+      platform: SocialPlatformEnum;
+      zernioAccountId: string;
+    }>;
+  } = {},
+): Publication {
   const publication = Publication.create({
     userId: "user-1",
     type: PublicationTypeEnum.POST,
     destinationScope: PublicationDestinationScopeEnum.ALL,
     caption: "Teste",
     mediaUrl: "https://cdn.example/media.jpg",
-    objectKey: "temp/media.jpg",
-    objectKeys: ["temp/media.jpg"],
-    targets: [
-      {
-        socialConnectedAccountId: "social-1",
-        platform: SocialPlatformEnum.INSTAGRAM,
-        zernioAccountId: "zernio-acc-1",
-      },
-    ],
+    objectKey: "https://cdn.example/media.jpg",
+    objectKeys: ["https://cdn.example/media.jpg"],
+    targets:
+      input.targets ?? [
+        {
+          socialConnectedAccountId: "social-1",
+          platform: SocialPlatformEnum.INSTAGRAM,
+          zernioAccountId: "zernio-acc-1",
+        },
+      ],
   });
 
   publication.setId("pub-1");
@@ -257,6 +270,7 @@ function createProcessingPublication(): Publication {
 function createPendingSession(): SocialConnectSession {
   const session = SocialConnectSession.create({
     userId: "user-1",
+    workspaceId: "workspace-1",
     accountSlotId: "slot-1",
     platform: SocialPlatformEnum.TIKTOK,
     zernioProfileId: "profile-1",
@@ -332,6 +346,64 @@ describe("HandleZernioWebhookUseCase post events", () => {
     expect(saved?.status).toBe(PublicationStatusEnum.COMPLETED);
     expect(saved?.targets[0]?.status).toBe(PublicationTargetStatusEnum.SUCCESS);
     expect(saved?.targets[0]?.platformPostUrl).toBe("https://instagram.com/p/abc");
+  });
+
+  test("marks publication as partial_failure on post.partial", async () => {
+    const publication = createProcessingPublication({
+      targets: [
+        {
+          socialConnectedAccountId: "social-1",
+          platform: SocialPlatformEnum.INSTAGRAM,
+          zernioAccountId: "zernio-acc-1",
+        },
+        {
+          socialConnectedAccountId: "social-2",
+          platform: SocialPlatformEnum.LINKEDIN,
+          zernioAccountId: "zernio-acc-2",
+        },
+      ],
+    });
+    const repository = new InMemoryPublicationRepository(publication);
+    const useCase = createUseCase({
+      publicationRepository: repository,
+      socialConnectedAccountRepository: new InMemorySocialConnectedAccountRepository(),
+      socialConnectSessionRepository: new InMemorySocialConnectSessionRepository(null),
+      accountSlotRepository: new InMemoryAccountSlotRepository(createSlot()),
+    });
+
+    await useCase.execute({
+      eventId: "evt-partial-1",
+      eventType: "post.partial",
+      payload: {
+        post: {
+          id: "zernio-post-1",
+          status: "partial",
+          platforms: [
+            {
+              platform: "instagram",
+              status: "published",
+              accountId: "zernio-acc-1",
+              platformPostId: "ig-post-1",
+              publishedUrl: "https://instagram.com/p/abc",
+            },
+            {
+              platform: "linkedin",
+              status: "failed",
+              accountId: "zernio-acc-2",
+              error: "LinkedIn rejected the post",
+              errorCode: "platform_error",
+            },
+          ],
+        },
+      },
+    });
+
+    const saved = await repository.findById("pub-1");
+
+    expect(saved?.status).toBe(PublicationStatusEnum.PARTIAL_FAILURE);
+    expect(saved?.targets[0]?.status).toBe(PublicationTargetStatusEnum.SUCCESS);
+    expect(saved?.targets[1]?.status).toBe(PublicationTargetStatusEnum.FAILED);
+    expect(saved?.targets[1]?.errorMessage).toBe("LinkedIn rejected the post");
   });
 
   test("updates targets and aggregate status on post.published", async () => {

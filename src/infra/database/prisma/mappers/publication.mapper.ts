@@ -27,6 +27,7 @@ export class PublicationMapper {
     return Publication.restore({
       id: row.id,
       userId: row.userId,
+      workspaceId: row.workspaceId,
       type: PublicationMapper.toPublicationType(row.type),
       destinationScope: PublicationMapper.toDestinationScope(row.destinationScope),
       caption: row.caption,
@@ -64,6 +65,7 @@ export class PublicationMapper {
 
     return {
       userId: data.userId,
+      workspaceId: data.workspaceId,
       type: data.type,
       destinationScope: data.destinationScope,
       caption: data.caption,
@@ -143,9 +145,15 @@ export class PublicationMapper {
   private static toDestinationScope(
     scope: string,
   ): PublicationDestinationScopeEnum {
-    return scope === PublicationDestinationScopeEnum.SELECTED
-      ? PublicationDestinationScopeEnum.SELECTED
-      : PublicationDestinationScopeEnum.ALL;
+    if (scope === PublicationDestinationScopeEnum.SELECTED) {
+      return PublicationDestinationScopeEnum.SELECTED;
+    }
+
+    if (scope === PublicationDestinationScopeEnum.WORKSPACE) {
+      return PublicationDestinationScopeEnum.WORKSPACE;
+    }
+
+    return PublicationDestinationScopeEnum.ALL;
   }
 
   private static toPublicationStatus(status: string): PublicationStatusEnum {

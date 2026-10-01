@@ -53,6 +53,7 @@ export class PrismaPublicationRepository
       where: {
         userId,
         ...(filters.status ? { status: filters.status } : {}),
+        ...(filters.workspaceId ? { workspaceId: filters.workspaceId } : {}),
         ...(filters.from || filters.to
           ? {
               scheduledFor: {

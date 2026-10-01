@@ -20,6 +20,8 @@ export interface IAccountSlotWithAccount extends IAccountSlot {
     status: string;
     canPost: boolean;
     needsReconnect: boolean;
+    workspaceId: string;
+    workspaceName: string;
   } | null;
 }
 

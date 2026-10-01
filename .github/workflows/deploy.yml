@@ -44,7 +44,6 @@ jobs:
       # Conexões internas Docker (hostnames dos containers):
       #   DATABASE_URL   = postgresql://USER:PASS@planejapost-postgres:5432/DB?schema=public
       #   REDIS_HOST     = planejapost-redis
-      #   MINIO_ENDPOINT = planejapost-minio
       - name: Create .env file
         run: |
           cat > .env << 'ENVEOF'
@@ -58,12 +57,6 @@ jobs:
           INSTAGRAM_OAUTH_SCOPES=${{ secrets.INSTAGRAM_OAUTH_SCOPES }}
           META_APP_CONFIG_ENCRYPTION_KEY=${{ secrets.META_APP_CONFIG_ENCRYPTION_KEY }}
           PUBLIC_API_URL=${{ secrets.PUBLIC_API_URL }}
-          MINIO_ENDPOINT=${{ secrets.MINIO_ENDPOINT }}
-          MINIO_PORT=${{ secrets.MINIO_PORT }}
-          MINIO_ACCESS_KEY=${{ secrets.MINIO_ACCESS_KEY }}
-          MINIO_SECRET_KEY=${{ secrets.MINIO_SECRET_KEY }}
-          MINIO_BUCKET=${{ secrets.MINIO_BUCKET }}
-          MINIO_USE_SSL=${{ secrets.MINIO_USE_SSL }}
           REDIS_HOST=${{ secrets.REDIS_HOST }}
           REDIS_PORT=${{ secrets.REDIS_PORT }}
           OMEGAPAY_PUBLIC_KEY=${{ secrets.OMEGAPAY_PUBLIC_KEY }}

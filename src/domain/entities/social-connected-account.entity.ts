@@ -4,6 +4,7 @@ import type { SocialPlatformEnum } from "@/domain/enums/social-platform.enum";
 export interface ISocialConnectedAccountProps {
   id: string;
   userId: string;
+  workspaceId: string;
   accountSlotId: string | null;
   platform: SocialPlatformEnum;
   zernioAccountId: string;
@@ -23,6 +24,7 @@ export interface ISocialConnectedAccountProps {
 
 export interface ISocialConnectedAccountCreateProps {
   userId: string;
+  workspaceId: string;
   accountSlotId: string | null;
   platform: SocialPlatformEnum;
   zernioAccountId: string;
@@ -48,6 +50,7 @@ export class SocialConnectedAccount {
     return new SocialConnectedAccount({
       id: "",
       userId: props.userId,
+      workspaceId: props.workspaceId,
       accountSlotId: props.accountSlotId,
       platform: props.platform,
       zernioAccountId: props.zernioAccountId,
@@ -76,6 +79,10 @@ export class SocialConnectedAccount {
 
   get userId(): string {
     return this.props.userId;
+  }
+
+  get workspaceId(): string {
+    return this.props.workspaceId;
   }
 
   get accountSlotId(): string | null {
@@ -183,6 +190,7 @@ export class SocialConnectedAccount {
 
   reconnect(input: {
     accountSlotId: string;
+    workspaceId?: string;
     username: string;
     displayName?: string | null;
     avatarUrl?: string | null;
@@ -191,6 +199,11 @@ export class SocialConnectedAccount {
     permissions?: Record<string, unknown> | null;
   }): void {
     this.props.accountSlotId = input.accountSlotId;
+
+    if (input.workspaceId !== undefined) {
+      this.props.workspaceId = input.workspaceId;
+    }
+
     this.props.username = input.username;
     this.props.displayName = input.displayName ?? this.props.displayName;
     this.props.avatarUrl = input.avatarUrl ?? this.props.avatarUrl;
@@ -205,6 +218,11 @@ export class SocialConnectedAccount {
 
   assignSlot(accountSlotId: string): void {
     this.props.accountSlotId = accountSlotId;
+    this.props.updatedAt = new Date();
+  }
+
+  moveToWorkspace(workspaceId: string): void {
+    this.props.workspaceId = workspaceId;
     this.props.updatedAt = new Date();
   }
 

@@ -1,5 +1,4 @@
 import { AppError } from "@/domain/errors/app.error";
-import type { ITemporaryPublicationMediaStorage } from "@/domain/storages/temporary-publication-media.storage";
 import type { IZernioMediaService } from "@/domain/zernio/zernio-media.service";
 
 const ALLOWED_MIME_TYPES = new Set([
@@ -20,18 +19,14 @@ export interface IUploadPublicationMediaInput {
 }
 
 export interface IUploadPublicationMediaResult {
-  objectKey: string;
   publicUrl: string;
 }
 
 export class UploadPublicationMediaUseCase {
-  constructor(
-    private readonly temporaryMediaStorage: ITemporaryPublicationMediaStorage,
-    private readonly zernioMediaService: IZernioMediaService,
-  ) {}
+  constructor(private readonly zernioMediaService: IZernioMediaService) {}
 
   async execute(
-    authUserId: string,
+    _authUserId: string,
     file: IUploadPublicationMediaInput,
   ): Promise<IUploadPublicationMediaResult> {
     if (!ALLOWED_MIME_TYPES.has(file.type)) {
@@ -51,17 +46,6 @@ export class UploadPublicationMediaUseCase {
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
-    const objectKey = this.temporaryMediaStorage.buildObjectKey(
-      authUserId,
-      file.name,
-    );
-
-    await this.temporaryMediaStorage.upload({
-      objectKey,
-      buffer,
-      contentType: file.type,
-      size: file.size,
-    });
 
     const presigned = await this.zernioMediaService.presignUpload({
       filename: file.name,
@@ -76,7 +60,6 @@ export class UploadPublicationMediaUseCase {
     });
 
     return {
-      objectKey,
       publicUrl: presigned.publicUrl,
     };
   }

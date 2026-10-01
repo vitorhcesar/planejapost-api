@@ -52,6 +52,12 @@ export class PrismaAccountSlotRepository
             status: true,
             canPost: true,
             needsReconnect: true,
+            workspaceId: true,
+            workspace: {
+              select: {
+                name: true,
+              },
+            },
           },
         },
       },
@@ -70,6 +76,8 @@ export class PrismaAccountSlotRepository
             status: row.socialConnectedAccount.status,
             canPost: row.socialConnectedAccount.canPost,
             needsReconnect: row.socialConnectedAccount.needsReconnect,
+            workspaceId: row.socialConnectedAccount.workspaceId,
+            workspaceName: row.socialConnectedAccount.workspace.name,
           }
         : null,
     }));

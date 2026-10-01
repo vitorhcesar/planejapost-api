@@ -4,6 +4,7 @@ import type { SocialPlatformEnum } from "@/domain/enums/social-platform.enum";
 export interface ISocialConnectSessionProps {
   id: string;
   userId: string;
+  workspaceId: string;
   accountSlotId: string;
   platform: SocialPlatformEnum;
   zernioProfileId: string;
@@ -19,6 +20,7 @@ export interface ISocialConnectSessionProps {
 
 export interface ISocialConnectSessionCreateProps {
   userId: string;
+  workspaceId: string;
   accountSlotId: string;
   platform: SocialPlatformEnum;
   zernioProfileId: string;
@@ -38,6 +40,7 @@ export class SocialConnectSession {
     return new SocialConnectSession({
       id: "",
       userId: props.userId,
+      workspaceId: props.workspaceId,
       accountSlotId: props.accountSlotId,
       platform: props.platform,
       zernioProfileId: props.zernioProfileId,
@@ -62,6 +65,10 @@ export class SocialConnectSession {
 
   get userId(): string {
     return this.props.userId;
+  }
+
+  get workspaceId(): string {
+    return this.props.workspaceId;
   }
 
   get accountSlotId(): string {

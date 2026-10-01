@@ -4,6 +4,8 @@ import { AppError } from "@/domain/errors/app.error";
 import {
   completeSocialConnectBodySchema,
   createSocialConnectSessionBodySchema,
+  listSocialAccountsQuerySchema,
+  moveSocialAccountWorkspaceBodySchema,
   socialConnectSelectionQuerySchema,
 } from "@/http/validation/schemas/social.schema";
 
@@ -16,6 +18,7 @@ export class SocialRoutes extends BaseHttpRoute {
       listConnectedAccounts,
       disconnectAccount,
       listSelectionOptions,
+      moveAccountToWorkspace,
     } = this.container.useCases.social;
 
     route.post("/social/connect-sessions", async (context) => {
@@ -32,6 +35,7 @@ export class SocialRoutes extends BaseHttpRoute {
         userId: authUserId!,
         slotId: parsedBody.data.slotId,
         platform: parsedBody.data.platform,
+        workspaceId: parsedBody.data.workspaceId,
         loginMethod: parsedBody.data.loginMethod,
       });
 
@@ -82,9 +86,43 @@ export class SocialRoutes extends BaseHttpRoute {
 
     route.get("/social/accounts", async (context) => {
       const { authUserId } = getAuthContext(context);
-      const accounts = await listConnectedAccounts.execute(authUserId!);
+      const parsedQuery = listSocialAccountsQuerySchema.safeParse(context.query);
+
+      if (!parsedQuery.success) {
+        throw new AppError("Parâmetros inválidos", 400, "validation", {
+          issues: parsedQuery.error.flatten(),
+        });
+      }
+
+      const accounts = await listConnectedAccounts.execute(authUserId!, {
+        workspaceId: parsedQuery.data.workspaceId,
+      });
 
       return this.successResponse("OK", accounts, 200);
+    });
+
+    route.patch("/social/accounts/:accountId/workspace", async (context) => {
+      const { authUserId } = getAuthContext(context);
+      const accountId = context.params.accountId;
+      const parsedBody = moveSocialAccountWorkspaceBodySchema.safeParse(context.body);
+
+      if (!accountId) {
+        throw new AppError("Conta social inválida", 400, "invalid_account_id");
+      }
+
+      if (!parsedBody.success) {
+        throw new AppError("Dados inválidos", 400, "validation", {
+          issues: parsedBody.error.flatten(),
+        });
+      }
+
+      await moveAccountToWorkspace.execute({
+        userId: authUserId!,
+        accountId,
+        workspaceId: parsedBody.data.workspaceId,
+      });
+
+      return this.successResponse("Conta movida para o workspace", null, 200);
     });
 
     route.delete("/social/accounts/:accountId", async (context) => {

@@ -26,6 +26,7 @@ export interface IPublicationTargetProps {
 export interface IPublicationProps {
   id: string;
   userId: string;
+  workspaceId: string | null;
   type: PublicationTypeEnum;
   destinationScope: PublicationDestinationScopeEnum;
   caption: string | null;
@@ -52,6 +53,7 @@ export interface IPublicationTargetCreateInput {
 
 export interface IPublicationCreateProps {
   userId: string;
+  workspaceId?: string | null;
   type: PublicationTypeEnum;
   destinationScope: PublicationDestinationScopeEnum;
   caption?: string | null;
@@ -194,6 +196,7 @@ export class Publication {
     return new Publication({
       id: publicationId,
       userId: props.userId,
+      workspaceId: props.workspaceId ?? null,
       type: props.type,
       destinationScope: props.destinationScope,
       caption: props.caption ?? null,
@@ -223,6 +226,10 @@ export class Publication {
 
   get userId(): string {
     return this.props.userId;
+  }
+
+  get workspaceId(): string | null {
+    return this.props.workspaceId;
   }
 
   get type(): PublicationTypeEnum {

@@ -8,6 +8,8 @@ export interface ISocialConnectedAccountDto {
   status: string;
   canPost: boolean;
   needsReconnect: boolean;
+  workspaceId: string;
+  workspaceName: string;
   accountSlotId: string | null;
   isExpired: boolean;
   connectedAt: string;
