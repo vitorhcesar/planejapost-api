@@ -16,6 +16,7 @@ export interface IAdminOverviewMetrics {
   mrr: number;
   activeSubscriptions: number;
   pastDueSubscriptions: number;
+  trialSubscriptions: number;
   canceledSubscriptions: number;
   mostPopularPlan: IMostPopularPlan | null;
   planDistribution: IPlanDistributionItem[];

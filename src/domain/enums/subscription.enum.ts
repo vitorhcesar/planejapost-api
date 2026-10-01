@@ -41,6 +41,12 @@ export const ACTIVE_SUBSCRIPTION_STATUSES = new Set<string>([
   SubscriptionStatusEnum.TRIAL,
 ]);
 
+/** Statuses that generate recurring revenue (excludes trial). */
+export const PAYING_SUBSCRIPTION_STATUSES = [
+  SubscriptionStatusEnum.ACTIVE,
+  SubscriptionStatusEnum.PAST_DUE,
+] as const;
+
 export const COUNTABLE_PUBLICATION_STATUSES = new Set<string>([
   "pending",
   "processing",

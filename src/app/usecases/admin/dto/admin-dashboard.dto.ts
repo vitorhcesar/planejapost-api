@@ -27,6 +27,7 @@ export interface IAdminDashboardMetricsDto {
   mrr: number;
   activeSubscriptions: number;
   pastDueSubscriptions: number;
+  trialSubscriptions: number;
   canceledSubscriptions: number;
   mostPopularPlan: IAdminMostPopularPlanDto | null;
   planDistribution: IAdminPlanDistributionItemDto[];

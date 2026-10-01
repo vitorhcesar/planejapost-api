@@ -1,15 +1,18 @@
 import { PublicationTypeEnum } from "@/domain/enums/publication.enum";
 import { SocialAccountStatusEnum } from "@/domain/enums/social-account.enum";
 import {
-  ACTIVE_SUBSCRIPTION_STATUSES,
+  PAYING_SUBSCRIPTION_STATUSES,
   SubscriptionStatusEnum,
 } from "@/domain/enums/subscription.enum";
+import {
+  buildPlanDistribution,
+  calculateMrrFromPlanGroups,
+} from "@/domain/utils/subscription-metrics.util";
 import type {
   IAdminAnalyticsRepository,
   IAdminOverviewMetrics,
   IAdminPeriodDailyGrowth,
   IAdminPeriodMetrics,
-  IPlanDistributionItem,
 } from "@/domain/repositories/admin-analytics.repository";
 import { estimateZernioCost } from "@/domain/utils/zernio-pricing.util";
 import { BasePrismaRepository } from "@/infra/database/prisma/repositories/base-prisma.repository";
@@ -48,6 +51,7 @@ export class PrismaAdminAnalyticsRepository
       totalStories,
       activeSubscriptions,
       pastDueSubscriptions,
+      trialSubscriptions,
       canceledSubscriptions,
       planGroups,
       connectedAccountRows,
@@ -69,13 +73,16 @@ export class PrismaAdminAnalyticsRepository
         where: { status: SubscriptionStatusEnum.PAST_DUE },
       }),
       prisma.subscription.count({
+        where: { status: SubscriptionStatusEnum.TRIAL },
+      }),
+      prisma.subscription.count({
         where: { status: SubscriptionStatusEnum.CANCELED },
       }),
       prisma.subscription.groupBy({
         by: ["planId"],
         where: {
           status: {
-            in: Array.from(ACTIVE_SUBSCRIPTION_STATUSES),
+            in: [...PAYING_SUBSCRIPTION_STATUSES],
           },
         },
         _count: { _all: true },
@@ -96,29 +103,14 @@ export class PrismaAdminAnalyticsRepository
 
     const planById = new Map(plans.map((plan) => [plan.id, plan]));
 
-    const planDistribution: IPlanDistributionItem[] = planGroups
-      .map((group) => {
-        const plan = planById.get(group.planId);
+    const payingPlanGroups = planGroups.map((group) => ({
+      planId: group.planId,
+      count: group._count._all,
+    }));
 
-        return {
-          planId: group.planId,
-          planName: plan?.name ?? group.planId,
-          count: group._count._all,
-        };
-      })
-      .sort((left, right) => right.count - left.count);
-
+    const planDistribution = buildPlanDistribution(payingPlanGroups, plans);
     const mostPopularPlan = planDistribution[0] ?? null;
-
-    const mrr = plans.reduce((total, plan) => {
-      const group = planGroups.find((item) => item.planId === plan.id);
-
-      if (!group) {
-        return total;
-      }
-
-      return total + Number(plan.priceMonthlyBrl) * group._count._all;
-    }, 0);
+    const mrr = calculateMrrFromPlanGroups(payingPlanGroups, plans);
 
     const zernio = estimateZernioCost(
       connectedAccountRows.map((account) => ({
@@ -130,6 +122,7 @@ export class PrismaAdminAnalyticsRepository
       mrr,
       activeSubscriptions,
       pastDueSubscriptions,
+      trialSubscriptions,
       canceledSubscriptions,
       mostPopularPlan,
       planDistribution,
