@@ -304,7 +304,11 @@ export function createUseCases(
       ),
     },
     accountSlot: {
-      list: new ListAccountSlotsUseCase(repositories.accountSlot),
+      list: new ListAccountSlotsUseCase(
+        repositories.accountSlot,
+        repositories.subscription,
+        provisionAccountSlots,
+      ),
     },
     social: {
       createConnectSession: new CreateSocialConnectSessionUseCase(

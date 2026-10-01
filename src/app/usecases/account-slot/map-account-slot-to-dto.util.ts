@@ -1,10 +1,12 @@
 import type { IAccountSlotDto } from "@/app/usecases/account-slot/dto/account-slot.dto";
+import { AccountSlotStatusEnum } from "@/domain/enums/account-slot.enum";
 import type { IAccountSlotWithAccount } from "@/domain/repositories/account-slot.repository";
 
 export function mapAccountSlotToDto(slot: IAccountSlotWithAccount): IAccountSlotDto {
   return {
     id: slot.id,
     status: slot.status,
+    isExpired: slot.status === AccountSlotStatusEnum.EXPIRED,
     socialAccount: slot.socialAccount
       ? {
           id: slot.socialAccount.id,

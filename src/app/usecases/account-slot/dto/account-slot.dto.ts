@@ -14,6 +14,7 @@ export interface IAccountSlotAccountDto {
 export interface IAccountSlotDto {
   id: string;
   status: string;
+  isExpired: boolean;
   socialAccount: IAccountSlotAccountDto | null;
   createdAt: string;
 }
