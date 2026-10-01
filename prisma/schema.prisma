@@ -300,6 +300,9 @@ model Subscription {
   cancelAtPeriodEnd      Boolean                   @default(false)
   scheduledPlanId        String?
   stripeCustomerId       String?
+  trialEndsAt            DateTime?
+  trialGrantedAt         DateTime?
+  trialGrantedByUserId   String?
   createdAt              DateTime                  @default(now())
   updatedAt              DateTime                  @updatedAt
   invoices               SubscriptionInvoice[]
@@ -331,6 +334,9 @@ model SubscriptionInvoice {
   pixExpiresAt            DateTime?
   stripeCheckoutSessionId String?
   stripePaymentIntentId   String?
+  manualPaidReason        String?
+  manualPaidByUserId      String?
+  manualPaidAt            DateTime?
   createdAt               DateTime     @default(now())
   updatedAt               DateTime     @updatedAt
 
@@ -378,6 +384,26 @@ model OasyfyWebhookEvent {
   @@index([event])
   @@index([receivedAt])
   @@map("oasyfy_webhook_event")
+}
+
+model OasyfyPixTestPayment {
+  id                  String    @id @default(cuid())
+  createdByUserId     String
+  amount              Decimal   @db.Decimal(12, 2)
+  status              String
+  oasyfyTransactionId String?
+  pixCode             String?
+  pixImageUrl         String?
+  pixExpiresAt        DateTime?
+  paidAt              DateTime?
+  webhookEventId      String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@index([createdByUserId])
+  @@index([status])
+  @@index([oasyfyTransactionId])
+  @@map("oasyfy_pix_test_payment")
 }
 
 model StripeWebhookEvent {

@@ -6,6 +6,7 @@ import type {
   ISubscriptionPlanDto,
 } from "@/app/usecases/subscription/dto/subscription.dto";
 import { ProvisionAccountSlotsUseCase } from "@/app/usecases/subscription/provision-account-slots.usecase";
+import { SubscriptionEmailService } from "@/app/usecases/subscription/subscription-email.service";
 import {
   assertConnectionsLimit,
   assertSubscriptionAllowsAccess,
@@ -95,15 +96,16 @@ export class GetMySubscriptionUseCase {
     const subscription = await this.subscriptionRepository.findByUserId(userId);
 
     if (!subscription) {
-      return {
-        subscription: null,
-        usage: null,
-        openInvoice: null,
-        features: [],
-      };
+    return {
+      subscription: null,
+      usage: null,
+      openInvoice: null,
+      invoices: [],
+      features: [],
+    };
     }
 
-    const [connectionsUsed, postsUsed, openInvoice] = await Promise.all([
+    const [connectionsUsed, postsUsed, openInvoice, invoices] = await Promise.all([
       this.subscriptionRepository.countConnectedAccounts(userId),
       subscription.currentPeriodStart && subscription.currentPeriodEnd
         ? this.subscriptionRepository.countPostsInPeriod(
@@ -113,6 +115,7 @@ export class GetMySubscriptionUseCase {
           )
         : Promise.resolve(0),
       this.subscriptionRepository.findOpenInvoiceBySubscriptionId(subscription.id),
+      this.subscriptionRepository.listInvoicesBySubscriptionId(subscription.id),
     ]);
 
     return {
@@ -142,6 +145,15 @@ export class GetMySubscriptionUseCase {
             status: openInvoice.status,
           }
         : null,
+      invoices: invoices.map((item) => ({
+        id: item.id,
+        type: item.type,
+        status: item.status,
+        amount: item.amount,
+        dueAt: item.dueAt.toISOString(),
+        paidAt: item.paidAt?.toISOString() ?? null,
+        createdAt: item.createdAt.toISOString(),
+      })),
       features: getPlanFeatureKeys(
         subscription.plan.features as unknown as Parameters<
           typeof getPlanFeatureKeys
@@ -181,9 +193,11 @@ export class SubscribeToPlanUseCase {
 
     if (
       existing &&
-      [SubscriptionStatusEnum.ACTIVE, SubscriptionStatusEnum.PAST_DUE].includes(
-        existing.status,
-      )
+      [
+        SubscriptionStatusEnum.ACTIVE,
+        SubscriptionStatusEnum.PAST_DUE,
+        SubscriptionStatusEnum.TRIAL,
+      ].includes(existing.status)
     ) {
       throw new AppError(
         "Usuário já possui assinatura ativa",
@@ -541,16 +555,28 @@ export class ProcessSubscriptionInvoicePaymentUseCase {
     private readonly subscriptionRepository: ISubscriptionRepository,
     private readonly subscriptionPlanRepository: ISubscriptionPlanRepository,
     private readonly provisionAccountSlotsUseCase: ProvisionAccountSlotsUseCase,
+    private readonly userRepository: IUserRepository,
+    private readonly subscriptionEmailService: SubscriptionEmailService,
   ) {}
 
-  async execute(invoiceId: string): Promise<void> {
+  async execute(
+    invoiceId: string,
+    options?: {
+      manualPaidReason?: string;
+      manualPaidByUserId?: string;
+    },
+  ): Promise<void> {
     const invoice = await this.subscriptionRepository.findInvoiceById(invoiceId);
 
     if (!invoice || invoice.status === SubscriptionInvoiceStatusEnum.PAID) {
       return;
     }
 
-    await this.subscriptionRepository.markInvoicePaid(invoiceId);
+    await this.subscriptionRepository.markInvoicePaid(invoiceId, {
+      manualPaidReason: options?.manualPaidReason,
+      manualPaidByUserId: options?.manualPaidByUserId,
+      manualPaidAt: options?.manualPaidReason ? new Date() : undefined,
+    });
 
     const subscription = await this.subscriptionRepository.findById(
       invoice.subscriptionId,
@@ -590,6 +616,15 @@ export class ProcessSubscriptionInvoicePaymentUseCase {
         updated.userId,
         updated.plan.connectionsLimit,
       );
+
+      const user = await this.userRepository.findById(updated.userId);
+
+      if (user) {
+        await this.subscriptionEmailService.sendActivatedNotice({
+          to: user.email,
+          planName: updated.plan.name,
+        });
+      }
     }
   }
 

@@ -2,6 +2,7 @@ export enum SubscriptionStatusEnum {
   PENDING = "pending",
   ACTIVE = "active",
   PAST_DUE = "past_due",
+  TRIAL = "trial",
   EXPIRED = "expired",
   CANCELED = "canceled",
 }
@@ -37,6 +38,7 @@ export enum SubscriptionPlanIdEnum {
 export const ACTIVE_SUBSCRIPTION_STATUSES = new Set<string>([
   SubscriptionStatusEnum.ACTIVE,
   SubscriptionStatusEnum.PAST_DUE,
+  SubscriptionStatusEnum.TRIAL,
 ]);
 
 export const COUNTABLE_PUBLICATION_STATUSES = new Set<string>([

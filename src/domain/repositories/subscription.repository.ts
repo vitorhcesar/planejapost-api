@@ -18,6 +18,9 @@ export interface ISubscription {
   cancelAtPeriodEnd: boolean;
   scheduledPlanId: string | null;
   stripeCustomerId: string | null;
+  trialEndsAt: Date | null;
+  trialGrantedAt: Date | null;
+  trialGrantedByUserId: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -40,6 +43,9 @@ export interface ISubscriptionInvoice {
   pixExpiresAt: Date | null;
   stripeCheckoutSessionId: string | null;
   stripePaymentIntentId: string | null;
+  manualPaidReason: string | null;
+  manualPaidByUserId: string | null;
+  manualPaidAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -87,12 +93,14 @@ export interface ISubscriptionRepository {
   ): Promise<ISubscription>;
   setPastDue(id: string, gracePeriodEndsAt: Date): Promise<ISubscription>;
   setExpired(id: string): Promise<ISubscription>;
+  setCanceled(id: string): Promise<ISubscription>;
   setCancelAtPeriodEnd(id: string, cancelAtPeriodEnd: boolean): Promise<ISubscription>;
   setScheduledPlanId(id: string, scheduledPlanId: string | null): Promise<ISubscription>;
   setStripeCustomerId(id: string, stripeCustomerId: string): Promise<ISubscription>;
   listForRenewalInvoiceGeneration(leadDays: number): Promise<ISubscriptionWithPlan[]>;
   listForOverdueProcessing(): Promise<ISubscriptionWithPlan[]>;
   listForExpiration(): Promise<ISubscriptionWithPlan[]>;
+  listForScheduledCancellation(): Promise<ISubscriptionWithPlan[]>;
   listForRenewalReminders(): Promise<
     Array<ISubscriptionWithPlan & { openInvoice: ISubscriptionInvoice }>
   >;
@@ -134,8 +142,17 @@ export interface ISubscriptionRepository {
     input?: {
       stripePaymentIntentId?: string;
       paidAt?: Date;
+      manualPaidReason?: string;
+      manualPaidByUserId?: string;
+      manualPaidAt?: Date;
     },
   ): Promise<ISubscriptionInvoice>;
+  listOpenInvoicesByUserId(userId: string): Promise<ISubscriptionInvoice[]>;
+  grantTrialSubscription(input: {
+    userId: string;
+    planId: string;
+    grantedByUserId: string;
+  }): Promise<ISubscriptionWithPlan>;
   cancelInvoice(invoiceId: string): Promise<ISubscriptionInvoice>;
   expireUnpaidPixInvoices(): Promise<ISubscriptionInvoice[]>;
   countPostsInPeriod(

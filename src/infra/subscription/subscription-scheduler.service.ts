@@ -7,6 +7,7 @@ export interface ISubscriptionSchedulerJobs {
   generateRenewalInvoices: { execute(): Promise<void> };
   sendRenewalReminders: { execute(): Promise<void> };
   processOverdue: { execute(): Promise<void> };
+  processScheduledCancellations: { execute(): Promise<void> };
   expireUnpaidPixInvoices: { execute(): Promise<void> };
 }
 
@@ -38,6 +39,7 @@ export class SubscriptionSchedulerService {
       await this.jobs.generateRenewalInvoices.execute();
       await this.jobs.sendRenewalReminders.execute();
       await this.jobs.processOverdue.execute();
+      await this.jobs.processScheduledCancellations.execute();
       await this.jobs.expireUnpaidPixInvoices.execute();
     } catch (error) {
       this.logger.error(SCHEDULER_SCOPE, "Falha ao executar jobs de assinatura", error);

@@ -17,4 +17,6 @@ export interface IUserRepository {
   updateZernioProfileId(id: string, zernioProfileId: string): Promise<User>;
   deleteById(id: string): Promise<void>;
   countSocialAccountsByUserId(userId: string): Promise<number>;
+  countWorkspacesByUserId(userId: string): Promise<number>;
+  countPublicationsByUserId(userId: string): Promise<number>;
 }

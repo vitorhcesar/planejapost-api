@@ -19,6 +19,10 @@ const envSchema = z.object({
   REDIS_PORT: z.coerce.number().int().positive().default(6379),
   OASYFY_PUBLIC_KEY: z.string().min(1).optional(),
   OASYFY_SECRET_KEY: z.string().min(1).optional(),
+  OASYFY_API_BASE_URL: z
+    .string()
+    .url()
+    .default("https://app.oasyfy.com/api/v1"),
   STRIPE_SECRET_KEY: z.string().min(1).optional(),
   STRIPE_WEBHOOK_SECRET: z.string().min(1).optional(),
   STRIPE_PUBLISHABLE_KEY: z.string().min(1).optional(),
@@ -123,20 +127,40 @@ export class EnvService {
     return this.env.REDIS_PORT;
   }
 
+  get oasyfyApiBaseUrl(): string {
+    return this.env.OASYFY_API_BASE_URL;
+  }
+
+  get oasyfyPublicKeyOptional(): string | undefined {
+    const value = this.env.OASYFY_PUBLIC_KEY?.trim();
+
+    return value && value.length > 0 ? value : undefined;
+  }
+
+  get oasyfySecretKeyOptional(): string | undefined {
+    const value = this.env.OASYFY_SECRET_KEY?.trim();
+
+    return value && value.length > 0 ? value : undefined;
+  }
+
   get oasyfyPublicKey(): string {
-    if (!this.env.OASYFY_PUBLIC_KEY) {
+    const value = this.oasyfyPublicKeyOptional;
+
+    if (!value) {
       throw new Error("OASYFY_PUBLIC_KEY não configurado");
     }
 
-    return this.env.OASYFY_PUBLIC_KEY;
+    return value;
   }
 
   get oasyfySecretKey(): string {
-    if (!this.env.OASYFY_SECRET_KEY) {
+    const value = this.oasyfySecretKeyOptional;
+
+    if (!value) {
       throw new Error("OASYFY_SECRET_KEY não configurado");
     }
 
-    return this.env.OASYFY_SECRET_KEY;
+    return value;
   }
 
   get stripeSecretKey(): string {

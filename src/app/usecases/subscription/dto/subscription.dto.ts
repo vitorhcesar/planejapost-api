@@ -35,6 +35,15 @@ export interface ISubscriptionMeDto {
     dueAt: string;
     status: string;
   } | null;
+  invoices: Array<{
+    id: string;
+    type: string;
+    status: string;
+    amount: number;
+    dueAt: string;
+    paidAt: string | null;
+    createdAt: string;
+  }>;
   features: string[];
 }
 

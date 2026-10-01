@@ -29,6 +29,9 @@ function mapSubscription(row: {
   cancelAtPeriodEnd: boolean;
   scheduledPlanId: string | null;
   stripeCustomerId: string | null;
+  trialEndsAt: Date | null;
+  trialGrantedAt: Date | null;
+  trialGrantedByUserId: string | null;
   createdAt: Date;
   updatedAt: Date;
 }): ISubscription {
@@ -45,6 +48,9 @@ function mapSubscription(row: {
     cancelAtPeriodEnd: row.cancelAtPeriodEnd,
     scheduledPlanId: row.scheduledPlanId,
     stripeCustomerId: row.stripeCustomerId,
+    trialEndsAt: row.trialEndsAt,
+    trialGrantedAt: row.trialGrantedAt,
+    trialGrantedByUserId: row.trialGrantedByUserId,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -68,6 +74,9 @@ function mapInvoice(row: {
   pixExpiresAt: Date | null;
   stripeCheckoutSessionId: string | null;
   stripePaymentIntentId: string | null;
+  manualPaidReason: string | null;
+  manualPaidByUserId: string | null;
+  manualPaidAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }): ISubscriptionInvoice {
@@ -89,6 +98,9 @@ function mapInvoice(row: {
     pixExpiresAt: row.pixExpiresAt,
     stripeCheckoutSessionId: row.stripeCheckoutSessionId,
     stripePaymentIntentId: row.stripePaymentIntentId,
+    manualPaidReason: row.manualPaidReason,
+    manualPaidByUserId: row.manualPaidByUserId,
+    manualPaidAt: row.manualPaidAt,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -107,6 +119,9 @@ function mapWithPlan(row: {
   cancelAtPeriodEnd: boolean;
   scheduledPlanId: string | null;
   stripeCustomerId: string | null;
+  trialEndsAt: Date | null;
+  trialGrantedAt: Date | null;
+  trialGrantedByUserId: string | null;
   createdAt: Date;
   updatedAt: Date;
   plan: {
@@ -239,6 +254,19 @@ export class PrismaSubscriptionRepository
     return mapSubscription(row);
   }
 
+  async setCanceled(id: string): Promise<ISubscription> {
+    const row = await this.getPrismaClient().subscription.update({
+      where: { id },
+      data: {
+        status: SubscriptionStatusEnum.CANCELED,
+        cancelAtPeriodEnd: false,
+        gracePeriodEndsAt: null,
+      },
+    });
+
+    return mapSubscription(row);
+  }
+
   async setCancelAtPeriodEnd(
     id: string,
     cancelAtPeriodEnd: boolean,
@@ -326,6 +354,22 @@ export class PrismaSubscriptionRepository
       where: {
         status: SubscriptionStatusEnum.PAST_DUE,
         gracePeriodEndsAt: { lt: now },
+      },
+      include: subscriptionInclude,
+    });
+
+    return rows.map(mapWithPlan);
+  }
+
+  async listForScheduledCancellation(): Promise<ISubscriptionWithPlan[]> {
+    const now = new Date();
+    const rows = await this.getPrismaClient().subscription.findMany({
+      where: {
+        cancelAtPeriodEnd: true,
+        status: {
+          in: [SubscriptionStatusEnum.ACTIVE, SubscriptionStatusEnum.PAST_DUE],
+        },
+        currentPeriodEnd: { lt: now },
       },
       include: subscriptionInclude,
     });
@@ -510,6 +554,9 @@ export class PrismaSubscriptionRepository
     input?: {
       stripePaymentIntentId?: string;
       paidAt?: Date;
+      manualPaidReason?: string;
+      manualPaidByUserId?: string;
+      manualPaidAt?: Date;
     },
   ): Promise<ISubscriptionInvoice> {
     const row = await this.getPrismaClient().subscriptionInvoice.update({
@@ -519,6 +566,13 @@ export class PrismaSubscriptionRepository
         paidAt: input?.paidAt ?? new Date(),
         ...(input?.stripePaymentIntentId
           ? { stripePaymentIntentId: input.stripePaymentIntentId }
+          : {}),
+        ...(input?.manualPaidReason
+          ? {
+              manualPaidReason: input.manualPaidReason,
+              manualPaidByUserId: input.manualPaidByUserId ?? null,
+              manualPaidAt: input.manualPaidAt ?? new Date(),
+            }
           : {}),
       },
     });
@@ -671,5 +725,73 @@ export class PrismaSubscriptionRepository
 
   async adminMarkInvoicePaid(invoiceId: string): Promise<ISubscriptionInvoice> {
     return this.markInvoicePaid(invoiceId);
+  }
+
+  async listOpenInvoicesByUserId(userId: string): Promise<ISubscriptionInvoice[]> {
+    const subscription = await this.findByUserId(userId);
+
+    if (!subscription) {
+      return [];
+    }
+
+    const rows = await this.getPrismaClient().subscriptionInvoice.findMany({
+      where: {
+        subscriptionId: subscription.id,
+        status: {
+          in: [
+            SubscriptionInvoiceStatusEnum.OPEN,
+            SubscriptionInvoiceStatusEnum.PENDING,
+          ],
+        },
+      },
+      orderBy: { dueAt: "asc" },
+    });
+
+    return rows.map(mapInvoice);
+  }
+
+  async grantTrialSubscription(input: {
+    userId: string;
+    planId: string;
+    grantedByUserId: string;
+  }): Promise<ISubscriptionWithPlan> {
+    const now = new Date();
+    const trialData = {
+      status: SubscriptionStatusEnum.TRIAL,
+      planId: input.planId,
+      trialEndsAt: null,
+      trialGrantedAt: now,
+      trialGrantedByUserId: input.grantedByUserId,
+      currentPeriodStart: null,
+      currentPeriodEnd: null,
+      dueAt: null,
+      gracePeriodEndsAt: null,
+      cancelAtPeriodEnd: false,
+      scheduledPlanId: null,
+    };
+
+    const existing = await this.findByUserId(input.userId);
+
+    if (!existing) {
+      await this.getPrismaClient().subscription.create({
+        data: {
+          userId: input.userId,
+          ...trialData,
+        },
+      });
+    } else {
+      await this.getPrismaClient().subscription.update({
+        where: { id: existing.id },
+        data: trialData,
+      });
+    }
+
+    const subscription = await this.findByUserId(input.userId);
+
+    if (!subscription) {
+      throw new Error("Failed to grant trial subscription");
+    }
+
+    return subscription;
   }
 }

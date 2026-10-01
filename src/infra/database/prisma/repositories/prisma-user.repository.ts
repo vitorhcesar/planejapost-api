@@ -84,6 +84,18 @@ export class PrismaUserRepository
     });
   }
 
+  async countWorkspacesByUserId(userId: string): Promise<number> {
+    return this.getPrismaClient().workspace.count({
+      where: { userId, archivedAt: null },
+    });
+  }
+
+  async countPublicationsByUserId(userId: string): Promise<number> {
+    return this.getPrismaClient().publication.count({
+      where: { userId },
+    });
+  }
+
   private buildSearchWhere(search?: string): Prisma.UserWhereInput {
     if (!search?.trim()) {
       return {};

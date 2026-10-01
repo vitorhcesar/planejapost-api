@@ -2,6 +2,7 @@ import type { IAdminAnalyticsRepository } from "@/domain/repositories/admin-anal
 import type { IAccountSlotRepository } from "@/domain/repositories/account-slot.repository";
 import type { IBillingSettingsRepository } from "@/domain/repositories/billing-settings.repository";
 import type { IEmailVerificationOtpRepository } from "@/domain/repositories/email-verification-otp.repository";
+import type { IOasyfyPixTestRepository } from "@/domain/repositories/oasyfy-pix-test.repository";
 import type { IOasyfyWebhookRepository } from "@/domain/repositories/oasyfy-webhook.repository";
 import type { IPublicationRepository } from "@/domain/repositories/publication.repository";
 import type { ISocialConnectedAccountRepository } from "@/domain/repositories/social-connected-account.repository";
@@ -18,6 +19,7 @@ import { PrismaAdminAnalyticsRepository } from "@/infra/database/prisma/reposito
 import { PrismaAccountSlotRepository } from "@/infra/database/prisma/repositories/prisma-account-slot.repository";
 import { PrismaBillingSettingsRepository } from "@/infra/database/prisma/repositories/prisma-billing-settings.repository";
 import { PrismaEmailVerificationOtpRepository } from "@/infra/database/prisma/repositories/prisma-email-verification-otp.repository";
+import { PrismaOasyfyPixTestRepository } from "@/infra/database/prisma/repositories/prisma-oasyfy-pix-test.repository";
 import { PrismaOasyfyWebhookRepository } from "@/infra/database/prisma/repositories/prisma-oasyfy-webhook.repository";
 import { PrismaPublicationRepository } from "@/infra/database/prisma/repositories/prisma-publication.repository";
 import { PrismaSocialConnectedAccountRepository } from "@/infra/database/prisma/repositories/prisma-social-connected-account.repository";
@@ -46,6 +48,7 @@ export interface IRepositories {
   subscriptionPlan: ISubscriptionPlanRepository;
   subscription: ISubscriptionRepository;
   subscriptionBilling: ISubscriptionBillingRepository;
+  oasyfyPixTest: IOasyfyPixTestRepository;
   oasyfyWebhook: IOasyfyWebhookRepository;
   stripeWebhook: IStripeWebhookRepository;
 }
@@ -66,6 +69,7 @@ export function createRepositories(): IRepositories {
     subscriptionPlan: new PrismaSubscriptionPlanRepository(),
     subscription: new PrismaSubscriptionRepository(),
     subscriptionBilling: new PrismaSubscriptionBillingRepository(),
+    oasyfyPixTest: new PrismaOasyfyPixTestRepository(),
     oasyfyWebhook: new PrismaOasyfyWebhookRepository(),
     stripeWebhook: new PrismaStripeWebhookRepository(),
   };

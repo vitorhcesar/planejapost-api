@@ -6,8 +6,7 @@ import type {
 } from "@/domain/acquirer/oasyfy.service";
 import { OmegaPayTransactionStatusEnum } from "@/domain/enums/omegapay.enum";
 import { EnvService } from "@/infra/config/env.service";
-
-const OASYFY_API_BASE_URL = "https://app.omegapayments.com.br/api/v1";
+import { maskSecret } from "@/shared/utils/mask-secret.util";
 
 interface IOasyfyErrorResponse {
   statusCode?: number;
@@ -27,7 +26,7 @@ export class OasyfyClient implements IOasyfyService {
     path: string,
     body?: unknown,
   ): Promise<T> {
-    const response = await fetch(`${OASYFY_API_BASE_URL}${path}`, {
+    const response = await fetch(`${this.env.oasyfyApiBaseUrl}${path}`, {
       method,
       headers: {
         "Content-Type": "application/json",
@@ -38,14 +37,39 @@ export class OasyfyClient implements IOasyfyService {
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
 
-    const data = (await response.json()) as T & IOasyfyErrorResponse;
+    let data: (T & IOasyfyErrorResponse) | null = null;
 
-    if (!response.ok) {
+    try {
+      data = (await response.json()) as T & IOasyfyErrorResponse;
+    } catch {
       throw new AppError(
-        data.message ?? "Falha na requisição à Oasyfy",
+        `Falha na requisição à Oasyfy (HTTP ${response.status})`,
         response.status,
         "oasyfy_request_failed",
       );
+    }
+
+    if (!response.ok) {
+      const errorCode = data.errorCode;
+      let message = data.message ?? "Falha na requisição à Oasyfy";
+
+      if (errorCode === "GATEWAY_INVALID_CREDENTIALS") {
+        message =
+          "Credenciais Oasyfy rejeitadas pela API. Confira as chaves de API no painel (app.oasyfy.com), reinicie o backend após alterar o .env e verifique se a conta está habilitada para integração.";
+      }
+
+      if (
+        errorCode === "GATEWAY_INVALID_ARGUMENT" &&
+        message.toLowerCase().includes("documento")
+      ) {
+        message = "CPF inválido para a Oasyfy. Informe um CPF válido com dígitos verificadores corretos.";
+      }
+
+      throw new AppError(message, response.status, errorCode ?? "oasyfy_request_failed", {
+        oasyfyErrorCode: errorCode,
+        apiBaseUrl: this.env.oasyfyApiBaseUrl,
+        publicKeyPreview: maskSecret(this.env.oasyfyPublicKey),
+      });
     }
 
     return data;

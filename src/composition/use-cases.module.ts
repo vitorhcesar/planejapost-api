@@ -1,5 +1,7 @@
 import { ListAccountSlotsUseCase } from "@/app/usecases/account-slot/account-slot.usecases";
 import {
+  AdminCancelInvoiceUseCase,
+  AdminCreateManualInvoiceUseCase,
   AdminMarkInvoicePaidUseCase,
   GetAdminBillingSettingsUseCase,
   GetAdminSubscriptionDetailsUseCase,
@@ -9,8 +11,19 @@ import {
   UpdateAdminBillingSettingsUseCase,
   UpdateAdminSubscriptionUseCase,
 } from "@/app/usecases/admin/admin-subscription.usecases";
+import { GetOasyfyConnectionDiagnosticsUseCase } from "@/app/usecases/admin/oasyfy-connection.usecase";
+import {
+  CreateOasyfyPixSmokeTestUseCase,
+  GetOasyfyPixSmokeTestUseCase,
+  ProcessOasyfyPixSmokeTestPaymentUseCase,
+} from "@/app/usecases/admin/oasyfy-pix-test.usecases";
 import { GetAdminBillingMetricsUseCase } from "@/app/usecases/admin/get-admin-billing-metrics.usecase";
 import { GetAdminDashboardMetricsUseCase } from "@/app/usecases/admin/get-admin-dashboard-metrics.usecase";
+import {
+  AdminMarkUserInvoicePaidUseCase,
+  GetAdminUserDetailUseCase,
+  GrantAdminTrialSubscriptionUseCase,
+} from "@/app/usecases/admin/admin-user-detail.usecases";
 import { GetAdminUserDetailsUseCase } from "@/app/usecases/admin/get-admin-user-details.usecase";
 import { ListAdminUsersUseCase } from "@/app/usecases/admin/list-admin-users.usecase";
 import { UpdateAdminUserRoleUseCase } from "@/app/usecases/admin/update-admin-user-role.usecase";
@@ -47,6 +60,7 @@ import {
   ExpireUnpaidPixInvoicesJob,
   GenerateRenewalInvoicesJob,
   ProcessOverdueSubscriptionsJob,
+  ProcessScheduledCancellationsJob,
   SendRenewalReminderEmailsJob,
 } from "@/app/usecases/subscription/subscription-jobs.usecases";
 import {
@@ -137,6 +151,7 @@ export interface IUseCases {
       generateRenewalInvoices: GenerateRenewalInvoicesJob;
       sendRenewalReminders: SendRenewalReminderEmailsJob;
       processOverdue: ProcessOverdueSubscriptionsJob;
+      processScheduledCancellations: ProcessScheduledCancellationsJob;
       expireUnpaidPixInvoices: ExpireUnpaidPixInvoicesJob;
     };
     expireForNonPayment: ExpireSubscriptionForNonPaymentUseCase;
@@ -152,15 +167,23 @@ export interface IUseCases {
     getBillingMetrics: GetAdminBillingMetricsUseCase;
     listUsers: ListAdminUsersUseCase;
     getUserDetails: GetAdminUserDetailsUseCase;
+    getUserDetail: GetAdminUserDetailUseCase;
+    grantTrialSubscription: GrantAdminTrialSubscriptionUseCase;
+    markUserInvoicePaid: AdminMarkUserInvoicePaidUseCase;
     updateUserRole: UpdateAdminUserRoleUseCase;
     listSubscriptions: ListAdminSubscriptionsUseCase;
     getSubscriptionDetails: GetAdminSubscriptionDetailsUseCase;
     updateSubscription: UpdateAdminSubscriptionUseCase;
     markInvoicePaid: AdminMarkInvoicePaidUseCase;
+    cancelInvoice: AdminCancelInvoiceUseCase;
+    createManualInvoice: AdminCreateManualInvoiceUseCase;
     listOasyfyWebhooks: ListAdminOasyfyWebhooksUseCase;
     listStripeWebhooks: ListAdminStripeWebhooksUseCase;
     getBillingSettings: GetAdminBillingSettingsUseCase;
     updateBillingSettings: UpdateAdminBillingSettingsUseCase;
+    createPixSmokeTest: CreateOasyfyPixSmokeTestUseCase;
+    getPixSmokeTest: GetOasyfyPixSmokeTestUseCase;
+    getOasyfyConnectionDiagnostics: GetOasyfyConnectionDiagnosticsUseCase;
   };
 }
 
@@ -180,6 +203,12 @@ export function createUseCases(
     repositories.subscription,
     repositories.subscriptionPlan,
     provisionAccountSlots,
+    repositories.user,
+    subscriptionEmailService,
+  );
+
+  const processPixSmokeTestPayment = new ProcessOasyfyPixSmokeTestPaymentUseCase(
+    repositories.oasyfyPixTest,
   );
 
   const expireForNonPayment = new ExpireSubscriptionForNonPaymentUseCase(
@@ -390,6 +419,10 @@ export function createUseCases(
           repositories.user,
           infrastructure.logger,
         ),
+        processScheduledCancellations: new ProcessScheduledCancellationsJob(
+          repositories.subscription,
+          infrastructure.logger,
+        ),
         expireUnpaidPixInvoices: new ExpireUnpaidPixInvoicesJob(
           repositories.subscription,
           infrastructure.logger,
@@ -401,7 +434,9 @@ export function createUseCases(
       receiveWebhook: new ReceiveOasyfyWebhookUseCase(
         repositories.oasyfyWebhook,
         repositories.subscription,
+        repositories.oasyfyPixTest,
         processInvoicePayment,
+        processPixSmokeTestPayment,
         infrastructure.logger,
       ),
     },
@@ -430,13 +465,34 @@ export function createUseCases(
         repositories.user,
         repositories.subscription,
       ),
+      getUserDetail: new GetAdminUserDetailUseCase(
+        repositories.user,
+        repositories.subscription,
+      ),
+      grantTrialSubscription: new GrantAdminTrialSubscriptionUseCase(
+        repositories.user,
+        repositories.subscriptionPlan,
+        repositories.subscription,
+        provisionAccountSlots,
+      ),
+      markUserInvoicePaid: new AdminMarkUserInvoicePaidUseCase(
+        repositories.subscription,
+        processInvoicePayment,
+      ),
       updateUserRole: new UpdateAdminUserRoleUseCase(repositories.user),
       listSubscriptions: new ListAdminSubscriptionsUseCase(repositories.subscription),
       getSubscriptionDetails: new GetAdminSubscriptionDetailsUseCase(
         repositories.subscription,
       ),
       updateSubscription: new UpdateAdminSubscriptionUseCase(repositories.subscription),
-      markInvoicePaid: new AdminMarkInvoicePaidUseCase(repositories.subscription),
+      markInvoicePaid: new AdminMarkInvoicePaidUseCase(
+        repositories.subscription,
+        processInvoicePayment,
+      ),
+      cancelInvoice: new AdminCancelInvoiceUseCase(repositories.subscription),
+      createManualInvoice: new AdminCreateManualInvoiceUseCase(
+        repositories.subscription,
+      ),
       listOasyfyWebhooks: new ListAdminOasyfyWebhooksUseCase(
         repositories.oasyfyWebhook,
       ),
@@ -449,6 +505,15 @@ export function createUseCases(
       updateBillingSettings: new UpdateAdminBillingSettingsUseCase(
         repositories.billingSettings,
       ),
+      createPixSmokeTest: new CreateOasyfyPixSmokeTestUseCase(
+        repositories.oasyfyPixTest,
+        repositories.billingSettings,
+        repositories.user,
+        infrastructure.oasyfyClient,
+        infrastructure.publicApiConfig,
+      ),
+      getPixSmokeTest: new GetOasyfyPixSmokeTestUseCase(repositories.oasyfyPixTest),
+      getOasyfyConnectionDiagnostics: new GetOasyfyConnectionDiagnosticsUseCase(),
     },
   };
 }

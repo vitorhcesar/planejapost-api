@@ -1,6 +1,9 @@
+import { ProcessOasyfyPixSmokeTestPaymentUseCase } from "@/app/usecases/admin/oasyfy-pix-test.usecases";
 import { ProcessSubscriptionInvoicePaymentUseCase } from "@/app/usecases/subscription/subscription.usecases";
+import { OASYFY_PIX_TEST_METADATA_TYPE } from "@/domain/constants/oasyfy-pix-test.constant";
 import type { IOasyfyWebhookPayload, IOasyfyWebhookReceipt } from "@/domain/acquirer/oasyfy-webhook";
 import { OmegaPayWebhookEventEnum } from "@/domain/enums/omegapay.enum";
+import type { IOasyfyPixTestRepository } from "@/domain/repositories/oasyfy-pix-test.repository";
 import type { IOasyfyWebhookRepository } from "@/domain/repositories/oasyfy-webhook.repository";
 import type { ISubscriptionRepository } from "@/domain/repositories/subscription.repository";
 import type { ILogger } from "@/domain/services/logger.service";
@@ -11,7 +14,9 @@ export class ReceiveOasyfyWebhookUseCase {
   constructor(
     private readonly oasyfyWebhookRepository: IOasyfyWebhookRepository,
     private readonly subscriptionRepository: ISubscriptionRepository,
+    private readonly oasyfyPixTestRepository: IOasyfyPixTestRepository,
     private readonly processInvoicePaymentUseCase: ProcessSubscriptionInvoicePaymentUseCase,
+    private readonly processPixSmokeTestPaymentUseCase: ProcessOasyfyPixSmokeTestPaymentUseCase,
     private readonly logger: ILogger,
   ) {}
 
@@ -34,13 +39,39 @@ export class ReceiveOasyfyWebhookUseCase {
     }
 
     try {
+      const pixTestPayment =
+        await this.oasyfyPixTestRepository.findByOasyfyTransactionId(transactionId);
+      const metadata = this.extractMetadata(payload);
+
+      if (
+        pixTestPayment ||
+        metadata?.type === OASYFY_PIX_TEST_METADATA_TYPE
+      ) {
+        const testId =
+          pixTestPayment?.id ??
+          (typeof metadata?.pixTestId === "string" ? metadata.pixTestId : null);
+
+        if (testId) {
+          await this.processPixSmokeTestPaymentUseCase.execute({
+            testId,
+            webhookEventId: receipt.id,
+          });
+
+          this.logger.info(OASYFY_WEBHOOK_SCOPE, "Smoke test PIX confirmado", {
+            testId,
+            webhookId: receipt.id,
+          });
+        }
+
+        return receipt;
+      }
+
       const invoice =
         await this.subscriptionRepository.findInvoiceByOasyfyTransactionId(
           transactionId,
         );
 
       if (!invoice) {
-        const metadata = this.extractMetadata(payload);
         const invoiceId = metadata?.subscriptionInvoiceId;
 
         if (typeof invoiceId === "string") {

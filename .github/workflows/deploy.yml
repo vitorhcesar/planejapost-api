@@ -59,8 +59,11 @@ jobs:
           PUBLIC_API_URL=${{ secrets.PUBLIC_API_URL }}
           REDIS_HOST=${{ secrets.REDIS_HOST }}
           REDIS_PORT=${{ secrets.REDIS_PORT }}
-          OMEGAPAY_PUBLIC_KEY=${{ secrets.OMEGAPAY_PUBLIC_KEY }}
-          OMEGAPAY_SECRET_KEY=${{ secrets.OMEGAPAY_SECRET_KEY }}
+          OASYFY_PUBLIC_KEY=${{ secrets.OASYFY_PUBLIC_KEY }}
+          OASYFY_SECRET_KEY=${{ secrets.OASYFY_SECRET_KEY }}
+          STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }}
+          STRIPE_PUBLISHABLE_KEY=${{ secrets.STRIPE_PUBLISHABLE_KEY }}
           SMTP_HOST=${{ secrets.SMTP_HOST }}
           SMTP_PORT=${{ secrets.SMTP_PORT }}
           SMTP_USERNAME=${{ secrets.SMTP_USERNAME }}

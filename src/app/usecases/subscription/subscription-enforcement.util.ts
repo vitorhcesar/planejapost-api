@@ -1,4 +1,8 @@
 import {
+  hasPlanFeature,
+  type ISubscriptionPlanFeatures,
+} from "@/domain/constants/subscription-plan-features.util";
+import {
   ACTIVE_SUBSCRIPTION_STATUSES,
   SubscriptionStatusEnum,
 } from "@/domain/enums/subscription.enum";
@@ -73,6 +77,21 @@ export function assertPostsLimit(
       "Limite mensal de publicações atingido",
       403,
       "posts_limit_reached",
+    );
+  }
+}
+
+export function assertPlanFeature(
+  subscription: ISubscriptionWithPlan,
+  feature: keyof ISubscriptionPlanFeatures,
+): void {
+  const features = subscription.plan.features as unknown as ISubscriptionPlanFeatures;
+
+  if (!hasPlanFeature(features, feature)) {
+    throw new AppError(
+      "Recurso não disponível no seu plano",
+      403,
+      "plan_feature_not_available",
     );
   }
 }

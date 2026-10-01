@@ -184,6 +184,27 @@ export class ProcessOverdueSubscriptionsJob {
   }
 }
 
+export class ProcessScheduledCancellationsJob {
+  constructor(
+    private readonly subscriptionRepository: ISubscriptionRepository,
+    private readonly logger: ILogger,
+  ) {}
+
+  async execute(): Promise<void> {
+    const subscriptions =
+      await this.subscriptionRepository.listForScheduledCancellation();
+
+    for (const subscription of subscriptions) {
+      await this.subscriptionRepository.setCanceled(subscription.id);
+
+      this.logger.info(JOB_SCOPE, "Assinatura cancelada ao fim do ciclo", {
+        subscriptionId: subscription.id,
+        userId: subscription.userId,
+      });
+    }
+  }
+}
+
 export class ExpireUnpaidPixInvoicesJob {
   constructor(
     private readonly subscriptionRepository: ISubscriptionRepository,

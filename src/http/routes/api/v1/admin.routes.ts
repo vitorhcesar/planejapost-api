@@ -1,9 +1,19 @@
 import { BaseHttpRoute, type THttpRoute } from "@/http/routes/base-http-route";
 import { getAuthContext } from "@/http/client";
+import { AppError } from "@/domain/errors/app.error";
 import { AppRoleEnum } from "@/domain/enums/app-role.enum";
-import { SubscriptionStatusEnum } from "@/domain/enums/subscription.enum";
+import {
+  SubscriptionInvoiceTypeEnum,
+  SubscriptionStatusEnum,
+} from "@/domain/enums/subscription.enum";
 import { adminBillingMetricsQuerySchema } from "@/http/validation/schemas/admin-billing-metrics.schema";
-import { updateBillingSettingsBodySchema } from "@/http/validation/schemas/subscription.schema";
+import {
+  adminCreateManualInvoiceBodySchema,
+  adminUpdateInvoiceBodySchema,
+  createPixSmokeTestBodySchema,
+  grantTrialSubscriptionBodySchema,
+  updateBillingSettingsBodySchema,
+} from "@/http/validation/schemas/subscription.schema";
 import { z } from "zod";
 
 const listUsersQuerySchema = z.object({
@@ -39,15 +49,23 @@ export class AdminRoutes extends BaseHttpRoute {
       getBillingMetrics,
       listUsers,
       getUserDetails,
+      getUserDetail,
+      grantTrialSubscription,
+      markUserInvoicePaid,
       updateUserRole,
       listSubscriptions,
       getSubscriptionDetails,
       updateSubscription,
       markInvoicePaid,
+      cancelInvoice,
+      createManualInvoice,
       listOasyfyWebhooks,
       listStripeWebhooks,
       getBillingSettings,
       updateBillingSettings,
+      createPixSmokeTest,
+      getPixSmokeTest,
+      getOasyfyConnectionDiagnostics,
     } = this.container.useCases.admin;
 
     route.get("/admin/dashboard/metrics", async () => {
@@ -75,6 +93,27 @@ export class AdminRoutes extends BaseHttpRoute {
       return this.successResponse("Configurações atualizadas", settings, 200);
     });
 
+    route.get("/admin/billing/oasyfy-connection", async () => {
+      const diagnostics = getOasyfyConnectionDiagnostics.execute();
+      return this.successResponse("OK", diagnostics, 200);
+    });
+
+    route.post("/admin/billing/pix-test", async (context) => {
+      const { authUserId } = getAuthContext(context);
+      const body = createPixSmokeTestBodySchema.parse(context.body);
+      const result = await createPixSmokeTest.execute({
+        userId: authUserId!,
+        client: body.client,
+      });
+      return this.successResponse("Teste PIX iniciado", result, 201);
+    });
+
+    route.get("/admin/billing/pix-test/:id", async (context) => {
+      const { id } = context.params;
+      const result = await getPixSmokeTest.execute(id);
+      return this.successResponse("OK", result, 200);
+    });
+
     route.get("/admin/subscriptions", async (context) => {
       const query = listSubscriptionsQuerySchema.parse(context.query);
       const result = await listSubscriptions.execute(query);
@@ -97,11 +136,32 @@ export class AdminRoutes extends BaseHttpRoute {
       return this.successResponse("Assinatura atualizada", subscription, 200);
     });
 
+    route.post("/admin/subscriptions/:id/invoices", async (context) => {
+      const { id } = context.params;
+      const body = adminCreateManualInvoiceBodySchema.parse(context.body);
+      const invoice = await createManualInvoice.execute(id, {
+        ...body,
+        type: body.type as SubscriptionInvoiceTypeEnum | undefined,
+      });
+      return this.successResponse("Fatura criada", invoice, 201);
+    });
+
     route.patch(
       "/admin/subscriptions/:id/invoices/:invoiceId",
       async (context) => {
         const { invoiceId } = context.params;
-        const invoice = await markInvoicePaid.execute(invoiceId);
+        const body = adminUpdateInvoiceBodySchema.parse(context.body ?? {});
+
+        if (body.action === "cancel") {
+          const invoice = await cancelInvoice.execute(invoiceId);
+          return this.successResponse("Fatura cancelada", invoice, 200);
+        }
+
+        const { authUserId } = getAuthContext(context);
+        const invoice = await markInvoicePaid.execute(invoiceId, {
+          adminUserId: authUserId!,
+          reason: body.reason,
+        });
         return this.successResponse("Fatura marcada como paga", invoice, 200);
       },
     );
@@ -143,6 +203,43 @@ export class AdminRoutes extends BaseHttpRoute {
       const { userId } = context.params;
       const user = await getUserDetails.execute(userId);
       return this.successResponse("OK", user, 200);
+    });
+
+    route.get("/admin/users/:userId/details", async (context) => {
+      const { userId } = context.params;
+      const detail = await getUserDetail.execute(userId);
+      return this.successResponse("OK", detail, 200);
+    });
+
+    route.post("/admin/users/:userId/subscription/trial", async (context) => {
+      const { userId } = context.params;
+      const { authUserId } = getAuthContext(context);
+      const body = grantTrialSubscriptionBodySchema.parse(context.body);
+      const subscription = await grantTrialSubscription.execute({
+        userId,
+        planId: body.planId,
+        grantedByUserId: authUserId!,
+      });
+      return this.successResponse("Trial ativado", subscription, 201);
+    });
+
+    route.patch("/admin/users/:userId/invoices/:invoiceId", async (context) => {
+      const { userId, invoiceId } = context.params;
+      const { authUserId } = getAuthContext(context);
+      const body = adminUpdateInvoiceBodySchema.parse(context.body ?? {});
+
+      if (body.action === "cancel") {
+        throw new AppError("Cancelamento não suportado nesta rota", 400, "invalid_action");
+      }
+
+      const invoice = await markUserInvoicePaid.execute({
+        userId,
+        invoiceId,
+        adminUserId: authUserId!,
+        reason: body.reason,
+      });
+
+      return this.successResponse("Fatura marcada como paga", invoice, 200);
     });
 
     route.patch("/admin/users/:userId/role", async (context) => {

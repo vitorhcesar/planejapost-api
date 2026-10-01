@@ -16,6 +16,7 @@ import type { ILogger } from "@/domain/services/logger.service";
 import type { IPublicationDto } from "@/app/usecases/publication/dto/publication.dto";
 import { parseZernioScheduledFor } from "@/app/usecases/publication/publication-queue.usecase";
 import { mapPublicationToDto } from "@/app/usecases/publication/map-publication-to-dto.util";
+import { assertPlanFeature } from "@/app/usecases/subscription/subscription-enforcement.util";
 import type { AssertSubscriptionForPublishUseCase } from "@/app/usecases/subscription/subscription.usecases";
 import { EnsureZernioProfileUseCase } from "@/app/usecases/zernio/ensure-zernio-profile.usecase";
 import type { IZernioPostService } from "@/domain/zernio/zernio-post.service";
@@ -63,7 +64,8 @@ export class CreateAndPublishPublicationUseCase {
     authUserId: string,
     input: ICreatePublicationInput,
   ): Promise<IPublicationDto> {
-    await this.assertSubscriptionForPublishUseCase.execute(authUserId);
+    const subscription =
+      await this.assertSubscriptionForPublishUseCase.execute(authUserId);
 
     const publishMode = this.resolvePublishMode(input);
     const isQueued = publishMode === PublishModeEnum.QUEUED;
@@ -114,6 +116,10 @@ export class CreateAndPublishPublicationUseCase {
         400,
         "media_required",
       );
+    }
+
+    if (mediaUrls.length > 1) {
+      assertPlanFeature(subscription, "carousel_editor");
     }
 
     const publication = Publication.create({
