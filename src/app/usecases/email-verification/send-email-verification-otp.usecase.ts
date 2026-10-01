@@ -47,6 +47,26 @@ export class SendEmailVerificationOtpUseCase {
     }
 
     const otp = generateEmailVerificationOtp();
+    const emailContent = buildEmailVerificationOtpEmailContent({
+      name: user.name,
+      otp,
+    });
+
+    try {
+      await this.emailService.sendEmail({
+        to: user.email,
+        subject: emailContent.subject,
+        text: emailContent.text,
+        html: emailContent.html,
+      });
+    } catch {
+      throw new AppError(
+        "Não foi possível enviar o e-mail. Tente novamente em instantes.",
+        502,
+        "email_send_failed",
+      );
+    }
+
     const hashedOtp = await hashEmailVerificationOtp(otp);
     const expiresAt = getEmailVerificationOtpExpirationDate();
 
@@ -55,18 +75,6 @@ export class SendEmailVerificationOtpUseCase {
       hashedOtp,
       expiresAt,
     );
-
-    const emailContent = buildEmailVerificationOtpEmailContent({
-      name: user.name,
-      otp,
-    });
-
-    await this.emailService.sendEmail({
-      to: user.email,
-      subject: emailContent.subject,
-      text: emailContent.text,
-      html: emailContent.html,
-    });
 
     return { cooldownSeconds: 60 };
   }
