@@ -1,6 +1,7 @@
 import { ListAccountSlotsUseCase } from "@/app/usecases/account-slot/account-slot.usecases";
 import {
   AdminCancelInvoiceUseCase,
+  AdminDeleteInvoiceUseCase,
   AdminCreateManualInvoiceUseCase,
   AdminMarkInvoicePaidUseCase,
   GetAdminBillingSettingsUseCase,
@@ -58,6 +59,7 @@ import { SubscriptionEmailService } from "@/app/usecases/subscription/subscripti
 import {
   ExpireSubscriptionForNonPaymentUseCase,
   ExpireUnpaidPixInvoicesJob,
+  GenerateTrialInitialInvoicesJob,
   GenerateRenewalInvoicesJob,
   ProcessOverdueSubscriptionsJob,
   ProcessScheduledCancellationsJob,
@@ -148,6 +150,7 @@ export interface IUseCases {
     assertForPublish: AssertSubscriptionForPublishUseCase;
     assertForConnect: AssertSubscriptionForConnectUseCase;
     jobs: {
+      generateTrialInitialInvoices: GenerateTrialInitialInvoicesJob;
       generateRenewalInvoices: GenerateRenewalInvoicesJob;
       sendRenewalReminders: SendRenewalReminderEmailsJob;
       processOverdue: ProcessOverdueSubscriptionsJob;
@@ -176,6 +179,7 @@ export interface IUseCases {
     updateSubscription: UpdateAdminSubscriptionUseCase;
     markInvoicePaid: AdminMarkInvoicePaidUseCase;
     cancelInvoice: AdminCancelInvoiceUseCase;
+    deleteInvoice: AdminDeleteInvoiceUseCase;
     createManualInvoice: AdminCreateManualInvoiceUseCase;
     listOasyfyWebhooks: ListAdminOasyfyWebhooksUseCase;
     listStripeWebhooks: ListAdminStripeWebhooksUseCase;
@@ -399,6 +403,11 @@ export function createUseCases(
       assertForPublish,
       assertForConnect,
       jobs: {
+        generateTrialInitialInvoices: new GenerateTrialInitialInvoicesJob(
+          repositories.subscription,
+          repositories.billingSettings,
+          infrastructure.logger,
+        ),
         generateRenewalInvoices: new GenerateRenewalInvoicesJob(
           repositories.subscription,
           repositories.billingSettings,
@@ -490,6 +499,7 @@ export function createUseCases(
         processInvoicePayment,
       ),
       cancelInvoice: new AdminCancelInvoiceUseCase(repositories.subscription),
+      deleteInvoice: new AdminDeleteInvoiceUseCase(repositories.subscription),
       createManualInvoice: new AdminCreateManualInvoiceUseCase(
         repositories.subscription,
       ),

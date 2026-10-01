@@ -4,6 +4,7 @@ const SCHEDULER_SCOPE = "SubscriptionScheduler";
 const DAILY_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
 export interface ISubscriptionSchedulerJobs {
+  generateTrialInitialInvoices: { execute(): Promise<void> };
   generateRenewalInvoices: { execute(): Promise<void> };
   sendRenewalReminders: { execute(): Promise<void> };
   processOverdue: { execute(): Promise<void> };
@@ -36,6 +37,7 @@ export class SubscriptionSchedulerService {
 
   private async runAll(): Promise<void> {
     try {
+      await this.jobs.generateTrialInitialInvoices.execute();
       await this.jobs.generateRenewalInvoices.execute();
       await this.jobs.sendRenewalReminders.execute();
       await this.jobs.processOverdue.execute();

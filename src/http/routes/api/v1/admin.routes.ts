@@ -36,8 +36,10 @@ const listSubscriptionsQuerySchema = z.object({
 const updateSubscriptionBodySchema = z.object({
   planId: z.string().optional(),
   status: z.string().optional(),
+  currentPeriodStart: z.coerce.date().optional(),
   currentPeriodEnd: z.coerce.date().optional(),
   dueAt: z.coerce.date().optional(),
+  trialEndsAt: z.coerce.date().nullable().optional(),
   cancelAtPeriodEnd: z.boolean().optional(),
 });
 
@@ -58,6 +60,7 @@ export class AdminRoutes extends BaseHttpRoute {
       updateSubscription,
       markInvoicePaid,
       cancelInvoice,
+      deleteInvoice,
       createManualInvoice,
       listOasyfyWebhooks,
       listStripeWebhooks,
@@ -166,6 +169,15 @@ export class AdminRoutes extends BaseHttpRoute {
       },
     );
 
+    route.delete(
+      "/admin/subscriptions/:id/invoices/:invoiceId",
+      async (context) => {
+        const { invoiceId } = context.params;
+        await deleteInvoice.execute({ invoiceId });
+        return this.successResponse("Fatura excluída", null, 200);
+      },
+    );
+
     route.get("/admin/billing/oasyfy-webhooks", async (context) => {
       const query = z
         .object({
@@ -240,6 +252,12 @@ export class AdminRoutes extends BaseHttpRoute {
       });
 
       return this.successResponse("Fatura marcada como paga", invoice, 200);
+    });
+
+    route.delete("/admin/users/:userId/invoices/:invoiceId", async (context) => {
+      const { userId, invoiceId } = context.params;
+      await deleteInvoice.execute({ invoiceId, userId });
+      return this.successResponse("Fatura excluída", null, 200);
     });
 
     route.patch("/admin/users/:userId/role", async (context) => {

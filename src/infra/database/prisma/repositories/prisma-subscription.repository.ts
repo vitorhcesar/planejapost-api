@@ -13,6 +13,7 @@ import type {
   ISubscriptionRepository,
   ISubscriptionWithPlan,
 } from "@/domain/repositories/subscription.repository";
+import { buildMonthlyBillingCycle } from "@/domain/utils/subscription-billing-cycle.util";
 import { BasePrismaRepository } from "@/infra/database/prisma/repositories/base-prisma.repository";
 import type { Prisma } from "../../../../../generated/prisma";
 
@@ -223,6 +224,7 @@ export class PrismaSubscriptionRepository
         currentPeriodEnd: input.currentPeriodEnd,
         dueAt: input.dueAt,
         gracePeriodEndsAt: null,
+        trialEndsAt: null,
         ...(input.planId ? { planId: input.planId } : {}),
       },
     });
@@ -333,12 +335,45 @@ export class PrismaSubscriptionRepository
     return eligible;
   }
 
+  async listTrialsForInitialInvoiceGeneration(
+    leadDays: number,
+  ): Promise<ISubscriptionWithPlan[]> {
+    const now = new Date();
+    const leadDate = new Date(now);
+    leadDate.setDate(leadDate.getDate() + leadDays);
+
+    const rows = await this.getPrismaClient().subscription.findMany({
+      where: {
+        status: SubscriptionStatusEnum.TRIAL,
+        dueAt: { lte: leadDate },
+        cancelAtPeriodEnd: false,
+      },
+      include: subscriptionInclude,
+    });
+
+    const eligible: ISubscriptionWithPlan[] = [];
+
+    for (const row of rows) {
+      const openInvoice = await this.findOpenInvoiceBySubscriptionId(row.id);
+
+      if (!openInvoice) {
+        eligible.push(mapWithPlan(row));
+      }
+    }
+
+    return eligible;
+  }
+
   async listForOverdueProcessing(): Promise<ISubscriptionWithPlan[]> {
     const now = new Date();
     const rows = await this.getPrismaClient().subscription.findMany({
       where: {
         status: {
-          in: [SubscriptionStatusEnum.ACTIVE, SubscriptionStatusEnum.PAST_DUE],
+          in: [
+            SubscriptionStatusEnum.ACTIVE,
+            SubscriptionStatusEnum.PAST_DUE,
+            SubscriptionStatusEnum.TRIAL,
+          ],
         },
         dueAt: { lt: now },
       },
@@ -383,7 +418,11 @@ export class PrismaSubscriptionRepository
     const subscriptions = await this.getPrismaClient().subscription.findMany({
       where: {
         status: {
-          in: [SubscriptionStatusEnum.ACTIVE, SubscriptionStatusEnum.PAST_DUE],
+          in: [
+            SubscriptionStatusEnum.ACTIVE,
+            SubscriptionStatusEnum.PAST_DUE,
+            SubscriptionStatusEnum.TRIAL,
+          ],
         },
         dueAt: { not: null },
       },
@@ -589,6 +628,18 @@ export class PrismaSubscriptionRepository
     return mapInvoice(row);
   }
 
+  async deleteInvoice(invoiceId: string): Promise<void> {
+    const prisma = this.getPrismaClient();
+
+    await prisma.subscriptionReminderLog.deleteMany({
+      where: { invoiceId },
+    });
+
+    await prisma.subscriptionInvoice.delete({
+      where: { id: invoiceId },
+    });
+  }
+
   async expireUnpaidPixInvoices(): Promise<ISubscriptionInvoice[]> {
     const now = new Date();
     const rows = await this.getPrismaClient().subscriptionInvoice.findMany({
@@ -710,8 +761,10 @@ export class PrismaSubscriptionRepository
     input: Partial<{
       planId: string;
       status: SubscriptionStatusEnum;
+      currentPeriodStart: Date;
       currentPeriodEnd: Date;
       dueAt: Date;
+      trialEndsAt: Date | null;
       cancelAtPeriodEnd: boolean;
     }>,
   ): Promise<ISubscription> {
@@ -756,15 +809,16 @@ export class PrismaSubscriptionRepository
     grantedByUserId: string;
   }): Promise<ISubscriptionWithPlan> {
     const now = new Date();
+    const cycle = buildMonthlyBillingCycle(now);
     const trialData = {
       status: SubscriptionStatusEnum.TRIAL,
       planId: input.planId,
-      trialEndsAt: null,
+      trialEndsAt: cycle.dueAt,
       trialGrantedAt: now,
       trialGrantedByUserId: input.grantedByUserId,
-      currentPeriodStart: null,
-      currentPeriodEnd: null,
-      dueAt: null,
+      currentPeriodStart: cycle.currentPeriodStart,
+      currentPeriodEnd: cycle.currentPeriodEnd,
+      dueAt: cycle.dueAt,
       gracePeriodEndsAt: null,
       cancelAtPeriodEnd: false,
       scheduledPlanId: null,

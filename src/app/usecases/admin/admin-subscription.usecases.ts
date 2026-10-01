@@ -10,6 +10,10 @@ import {
   SubscriptionInvoiceTypeEnum,
   SubscriptionStatusEnum,
 } from "@/domain/enums/subscription.enum";
+import {
+  addMonths,
+  syncTrialBillingDates,
+} from "@/domain/utils/subscription-billing-cycle.util";
 
 export class ListAdminSubscriptionsUseCase {
   constructor(private readonly subscriptionRepository: ISubscriptionRepository) {}
@@ -50,12 +54,38 @@ export class UpdateAdminSubscriptionUseCase {
     input: Partial<{
       planId: string;
       status: SubscriptionStatusEnum;
+      currentPeriodStart: Date;
       currentPeriodEnd: Date;
       dueAt: Date;
+      trialEndsAt: Date | null;
       cancelAtPeriodEnd: boolean;
     }>,
   ) {
-    return this.subscriptionRepository.adminUpdateSubscription(subscriptionId, input);
+    const subscription = await this.subscriptionRepository.findById(subscriptionId);
+
+    if (!subscription) {
+      throw new AppError("Assinatura não encontrada", 404, "subscription_not_found");
+    }
+
+    const updateData = { ...input };
+
+    if (subscription.status === SubscriptionStatusEnum.TRIAL) {
+      const syncedDates = syncTrialBillingDates({
+        dueAt: input.dueAt,
+        currentPeriodEnd: input.currentPeriodEnd,
+      });
+
+      Object.assign(updateData, syncedDates);
+
+      if (syncedDates.dueAt && !subscription.currentPeriodStart && !input.currentPeriodStart) {
+        updateData.currentPeriodStart = addMonths(syncedDates.dueAt, -1);
+      }
+    }
+
+    return this.subscriptionRepository.adminUpdateSubscription(
+      subscriptionId,
+      updateData,
+    );
   }
 }
 
@@ -99,6 +129,40 @@ export class AdminCancelInvoiceUseCase {
     }
 
     return this.subscriptionRepository.cancelInvoice(invoiceId);
+  }
+}
+
+export class AdminDeleteInvoiceUseCase {
+  constructor(private readonly subscriptionRepository: ISubscriptionRepository) {}
+
+  async execute(input: { invoiceId: string; userId?: string }) {
+    const invoice = await this.subscriptionRepository.findInvoiceById(input.invoiceId);
+
+    if (!invoice) {
+      throw new AppError("Fatura não encontrada", 404, "invoice_not_found");
+    }
+
+    const subscription = await this.subscriptionRepository.findById(
+      invoice.subscriptionId,
+    );
+
+    if (!subscription) {
+      throw new AppError("Assinatura não encontrada", 404, "subscription_not_found");
+    }
+
+    if (input.userId && subscription.userId !== input.userId) {
+      throw new AppError("Fatura não encontrada", 404, "invoice_not_found");
+    }
+
+    if (invoice.status === SubscriptionInvoiceStatusEnum.PAID) {
+      throw new AppError(
+        "Não é possível excluir faturas pagas",
+        400,
+        "invoice_not_deletable",
+      );
+    }
+
+    await this.subscriptionRepository.deleteInvoice(input.invoiceId);
   }
 }
 

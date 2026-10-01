@@ -17,6 +17,49 @@ import type { IZernioAccountService } from "@/domain/zernio/zernio-account.servi
 
 const JOB_SCOPE = "SubscriptionJobs";
 
+export class GenerateTrialInitialInvoicesJob {
+  constructor(
+    private readonly subscriptionRepository: ISubscriptionRepository,
+    private readonly billingSettingsRepository: IBillingSettingsRepository,
+    private readonly logger: ILogger,
+  ) {}
+
+  async execute(): Promise<void> {
+    const settings = await this.billingSettingsRepository.getOrCreate();
+    const subscriptions =
+      await this.subscriptionRepository.listTrialsForInitialInvoiceGeneration(
+        settings.invoiceGenerationLeadDays,
+      );
+
+    for (const subscription of subscriptions) {
+      if (!subscription.dueAt) {
+        continue;
+      }
+
+      const periodStart =
+        subscription.currentPeriodStart ?? subscription.dueAt;
+      const periodEnd =
+        subscription.currentPeriodEnd ?? addMonths(periodStart, 1);
+
+      await this.subscriptionRepository.createInvoice({
+        subscriptionId: subscription.id,
+        type: SubscriptionInvoiceTypeEnum.INITIAL,
+        amount: subscription.plan.priceMonthlyBrl,
+        paymentMethod:
+          subscription.preferredPaymentMethod ?? PaymentMethodEnum.PIX,
+        dueAt: subscription.dueAt,
+        periodStart,
+        periodEnd,
+      });
+
+      this.logger.info(JOB_SCOPE, "Fatura inicial de trial criada", {
+        subscriptionId: subscription.id,
+        dueAt: subscription.dueAt.toISOString(),
+      });
+    }
+  }
+}
+
 export class GenerateRenewalInvoicesJob {
   constructor(
     private readonly subscriptionRepository: ISubscriptionRepository,
@@ -143,7 +186,10 @@ export class ProcessOverdueSubscriptionsJob {
         continue;
       }
 
-      if (subscription.status === SubscriptionStatusEnum.ACTIVE) {
+      if (
+        subscription.status === SubscriptionStatusEnum.ACTIVE ||
+        subscription.status === SubscriptionStatusEnum.TRIAL
+      ) {
         const gracePeriodEndsAt = new Date(subscription.dueAt ?? now);
         gracePeriodEndsAt.setDate(
           gracePeriodEndsAt.getDate() + settings.gracePeriodDays,

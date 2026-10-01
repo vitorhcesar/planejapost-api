@@ -98,6 +98,9 @@ export interface ISubscriptionRepository {
   setScheduledPlanId(id: string, scheduledPlanId: string | null): Promise<ISubscription>;
   setStripeCustomerId(id: string, stripeCustomerId: string): Promise<ISubscription>;
   listForRenewalInvoiceGeneration(leadDays: number): Promise<ISubscriptionWithPlan[]>;
+  listTrialsForInitialInvoiceGeneration(
+    leadDays: number,
+  ): Promise<ISubscriptionWithPlan[]>;
   listForOverdueProcessing(): Promise<ISubscriptionWithPlan[]>;
   listForExpiration(): Promise<ISubscriptionWithPlan[]>;
   listForScheduledCancellation(): Promise<ISubscriptionWithPlan[]>;
@@ -154,6 +157,7 @@ export interface ISubscriptionRepository {
     grantedByUserId: string;
   }): Promise<ISubscriptionWithPlan>;
   cancelInvoice(invoiceId: string): Promise<ISubscriptionInvoice>;
+  deleteInvoice(invoiceId: string): Promise<void>;
   expireUnpaidPixInvoices(): Promise<ISubscriptionInvoice[]>;
   countPostsInPeriod(
     userId: string,
@@ -183,8 +187,10 @@ export interface ISubscriptionRepository {
     input: Partial<{
       planId: string;
       status: SubscriptionStatusEnum;
+      currentPeriodStart: Date;
       currentPeriodEnd: Date;
       dueAt: Date;
+      trialEndsAt: Date | null;
       cancelAtPeriodEnd: boolean;
     }>,
   ): Promise<ISubscription>;
