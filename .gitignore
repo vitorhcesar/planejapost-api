@@ -1,5 +1,6 @@
 node_modules/
 generated/
 .env
+prod.env
 dist/
 *.log

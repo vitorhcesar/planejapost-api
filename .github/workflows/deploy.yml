@@ -57,6 +57,8 @@ jobs:
           INSTAGRAM_OAUTH_SCOPES=${{ secrets.INSTAGRAM_OAUTH_SCOPES }}
           META_APP_CONFIG_ENCRYPTION_KEY=${{ secrets.META_APP_CONFIG_ENCRYPTION_KEY }}
           PUBLIC_API_URL=${{ secrets.PUBLIC_API_URL }}
+          ZERNIO_API_KEY=${{ secrets.ZERNIO_API_KEY }}
+          ZERNIO_WEBHOOK_SECRET=${{ secrets.ZERNIO_WEBHOOK_SECRET }}
           REDIS_HOST=${{ secrets.REDIS_HOST }}
           REDIS_PORT=${{ secrets.REDIS_PORT }}
           OASYFY_PUBLIC_KEY=${{ secrets.OASYFY_PUBLIC_KEY }}

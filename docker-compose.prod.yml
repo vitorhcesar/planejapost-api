@@ -2,15 +2,35 @@ name: planejapost
 
 # Compose de produção. Variáveis de ambiente vêm do arquivo .env na mesma pasta.
 #
-# Domínio público: https://app.planejapost.com (frontend) / https://api.planejapost.com (API)
+# Domínio público (SSL via Caddy):
+#   Frontend: https://app.planejapost.com
+#   API:      https://api.planejapost.com
 #
 # Conexões internas (app → banco, redis) usam os nomes dos containers:
-#   DATABASE_URL   = postgresql://USER:PASS@planejapost-postgres:5432/DB?schema=public
-#   REDIS_HOST     = planejapost-redis
+#   DATABASE_URL = postgresql://USER:PASS@planejapost-postgres:5432/DB?schema=public
+#   REDIS_HOST   = planejapost-redis
 #
-# Apenas a porta da aplicação (PORT) é exposta para o host/proxy reverso.
+# Apenas o Caddy expõe portas 80/443 para o host. API, Postgres e Redis ficam na rede interna.
 
 services:
+  # ─── Reverse proxy (SSL automático) ─────────────────────────────────────────
+  planejapost-caddy:
+    image: caddy:2-alpine
+    container_name: planejapost-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp" # HTTP/3
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - planejapost-caddy-data:/data
+      - planejapost-caddy-config:/config
+    networks:
+      - planejapost-network
+    depends_on:
+      - planejapost-api
+
   # ─── Aplicação ──────────────────────────────────────────────────────────────
   planejapost-api:
     build:
@@ -19,8 +39,6 @@ services:
     image: planejapost-api
     container_name: planejapost-api
     restart: unless-stopped
-    ports:
-      - "${PORT:-8080}:${PORT:-8080}"
     env_file:
       - .env
     depends_on:
@@ -69,8 +87,11 @@ services:
 
 networks:
   planejapost-network:
+    name: planejapost-network
     driver: bridge
 
 volumes:
+  planejapost-caddy-data:
+  planejapost-caddy-config:
   planejapost-postgres-data:
   planejapost-redis-data:

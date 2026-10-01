@@ -1,0 +1,17 @@
+# Caddy — reverse proxy com SSL automático (Let's Encrypt)
+# Domínios: api.planejapost.com (API) | app.planejapost.com (frontend)
+#
+# O e-mail abaixo é usado pela ACME para avisos de expiração de certificado.
+# Altere se necessário antes do primeiro deploy.
+
+{
+	email contato@planejapost.com
+}
+
+api.planejapost.com {
+	reverse_proxy planejapost-api:8080
+}
+
+app.planejapost.com {
+	reverse_proxy planejapost-front:3000
+}
