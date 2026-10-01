@@ -5,7 +5,6 @@ export interface IAccountSlot {
   userId: string;
   socialConnectedAccountId: string | null;
   status: AccountSlotStatusEnum;
-  expiresAt: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -31,12 +30,9 @@ export interface IAccountSlotRepository {
   findBySocialConnectedAccountId(
     accountId: string,
   ): Promise<IAccountSlot | null>;
-  createMany(
-    userId: string,
-    slots: Array<{ expiresAt: Date }>,
-  ): Promise<IAccountSlot[]>;
+  createMany(userId: string, slots: Array<Record<string, never>>): Promise<IAccountSlot[]>;
   assignAccount(slotId: string, accountId: string): Promise<IAccountSlot>;
   releaseAccount(accountId: string): Promise<void>;
-  renew(slotId: string, expiresAt: Date): Promise<IAccountSlot>;
-  expireOverdueSlots(userId: string): Promise<void>;
+  deactivate(slotId: string): Promise<void>;
+  findAvailableSlot(userId: string): Promise<IAccountSlot | null>;
 }

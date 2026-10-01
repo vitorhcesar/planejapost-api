@@ -1,13 +1,13 @@
 import { AppError } from "@/domain/errors/app.error";
 import type { IUserRepository } from "@/domain/repositories/user.repository";
-import type { IWalletRepository } from "@/domain/repositories/wallet.repository";
+import type { ISubscriptionRepository } from "@/domain/repositories/subscription.repository";
 import { mapUserToDto } from "@/app/usecases/user/map-user-to-dto.util";
 import type { IAdminUserDetailsDto } from "@/app/usecases/admin/dto/admin-user.dto";
 
 export class GetAdminUserDetailsUseCase {
   constructor(
     private readonly userRepository: IUserRepository,
-    private readonly walletRepository: IWalletRepository,
+    private readonly subscriptionRepository: ISubscriptionRepository,
   ) {}
 
   async execute(userId: string): Promise<IAdminUserDetailsDto> {
@@ -17,15 +17,16 @@ export class GetAdminUserDetailsUseCase {
       throw new AppError("Usuário não encontrado", 404, "user_not_found");
     }
 
-    const [socialAccountsCount, wallet] = await Promise.all([
+    const [socialAccountsCount, subscription] = await Promise.all([
       this.userRepository.countSocialAccountsByUserId(userId),
-      this.walletRepository.getOrCreateByUserId(userId),
+      this.subscriptionRepository.findByUserId(userId),
     ]);
 
     return {
       ...mapUserToDto(user),
       socialAccountsCount,
-      walletBalance: wallet.balance,
+      subscriptionStatus: subscription?.status ?? null,
+      subscriptionPlanName: subscription?.plan.name ?? null,
     };
   }
 }

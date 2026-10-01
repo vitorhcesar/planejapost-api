@@ -1,19 +1,22 @@
+import { ListAccountSlotsUseCase } from "@/app/usecases/account-slot/account-slot.usecases";
 import {
-  GetAccountSlotPricingUseCase,
-  ListAccountSlotsUseCase,
-  PurchaseAccountSlotsUseCase,
-  RenewAccountSlotUseCase,
-} from "@/app/usecases/account-slot/account-slot.usecases";
+  AdminMarkInvoicePaidUseCase,
+  GetAdminBillingSettingsUseCase,
+  GetAdminSubscriptionDetailsUseCase,
+  ListAdminOasyfyWebhooksUseCase,
+  ListAdminStripeWebhooksUseCase,
+  ListAdminSubscriptionsUseCase,
+  UpdateAdminBillingSettingsUseCase,
+  UpdateAdminSubscriptionUseCase,
+} from "@/app/usecases/admin/admin-subscription.usecases";
 import { GetAdminBillingMetricsUseCase } from "@/app/usecases/admin/get-admin-billing-metrics.usecase";
 import { GetAdminDashboardMetricsUseCase } from "@/app/usecases/admin/get-admin-dashboard-metrics.usecase";
-import { GetAdminOmegaPayWebhookDetailsUseCase } from "@/app/usecases/admin/get-admin-omegapay-webhook-details.usecase";
 import { GetAdminUserDetailsUseCase } from "@/app/usecases/admin/get-admin-user-details.usecase";
-import { ListAdminOmegaPayWebhooksUseCase } from "@/app/usecases/admin/list-admin-omegapay-webhooks.usecase";
 import { ListAdminUsersUseCase } from "@/app/usecases/admin/list-admin-users.usecase";
 import { UpdateAdminUserRoleUseCase } from "@/app/usecases/admin/update-admin-user-role.usecase";
 import { SendEmailVerificationOtpUseCase } from "@/app/usecases/email-verification/send-email-verification-otp.usecase";
 import { VerifyEmailVerificationOtpUseCase } from "@/app/usecases/email-verification/verify-email-verification-otp.usecase";
-import { ReceiveOmegaPayWebhookUseCase } from "@/app/usecases/omegapay/receive-omegapay-webhook.usecase";
+import { ReceiveOasyfyWebhookUseCase } from "@/app/usecases/oasyfy/receive-oasyfy-webhook.usecase";
 import {
   CreateAndPublishPublicationUseCase,
   GetPublicationThumbnailUseCase,
@@ -36,12 +39,32 @@ import {
   ListSocialConnectSelectionOptionsUseCase,
   ListSocialConnectedAccountsUseCase,
 } from "@/app/usecases/social/social-connected-account.usecases";
+import { ReceiveStripeWebhookUseCase } from "@/app/usecases/stripe/receive-stripe-webhook.usecase";
+import { ProvisionAccountSlotsUseCase } from "@/app/usecases/subscription/provision-account-slots.usecase";
+import { SubscriptionEmailService } from "@/app/usecases/subscription/subscription-email.service";
+import {
+  ExpireSubscriptionForNonPaymentUseCase,
+  ExpireUnpaidPixInvoicesJob,
+  GenerateRenewalInvoicesJob,
+  ProcessOverdueSubscriptionsJob,
+  SendRenewalReminderEmailsJob,
+} from "@/app/usecases/subscription/subscription-jobs.usecases";
+import {
+  AssertSubscriptionForConnectUseCase,
+  AssertSubscriptionForPublishUseCase,
+  CancelSubscriptionUseCase,
+  ChangeSubscriptionPlanUseCase,
+  GetBillingSettingsUseCase,
+  GetMySubscriptionUseCase,
+  GetPaymentMethodsUseCase,
+  ListSubscriptionPlansUseCase,
+  PaySubscriptionInvoiceUseCase,
+  ProcessSubscriptionInvoicePaymentUseCase,
+  SubscribeToPlanUseCase,
+  UpdateBillingSettingsUseCase,
+} from "@/app/usecases/subscription/subscription.usecases";
 import { DeleteUserAccountUseCase } from "@/app/usecases/user/delete-user-account.usecase";
 import { GetAuthenticatedUserUseCase } from "@/app/usecases/user/get-authenticated-user.usecase";
-import { AdminCreditWalletUseCase } from "@/app/usecases/wallet/admin-credit-wallet.usecase";
-import { CreateWalletPixRechargeUseCase } from "@/app/usecases/wallet/create-wallet-pix-recharge.usecase";
-import { GetWalletBalanceUseCase } from "@/app/usecases/wallet/get-wallet-balance.usecase";
-import { ProcessWalletRechargeFromWebhookUseCase } from "@/app/usecases/wallet/process-wallet-recharge-from-webhook.usecase";
 import { EnsureZernioProfileUseCase } from "@/app/usecases/zernio/ensure-zernio-profile.usecase";
 import { HandleZernioWebhookUseCase } from "@/app/usecases/zernio/handle-zernio-webhook.usecase";
 import {
@@ -75,17 +98,8 @@ export interface IUseCases {
     getQueue: GetPublicationQueueUseCase;
     upsertQueue: UpsertPublicationQueueUseCase;
   };
-  wallet: {
-    getBalance: GetWalletBalanceUseCase;
-    createPixRecharge: CreateWalletPixRechargeUseCase;
-    processRechargeFromWebhook: ProcessWalletRechargeFromWebhookUseCase;
-    adminCredit: AdminCreditWalletUseCase;
-  };
   accountSlot: {
-    getPricing: GetAccountSlotPricingUseCase;
     list: ListAccountSlotsUseCase;
-    purchase: PurchaseAccountSlotsUseCase;
-    renew: RenewAccountSlotUseCase;
   };
   social: {
     createConnectSession: CreateSocialConnectSessionUseCase;
@@ -106,8 +120,32 @@ export interface IUseCases {
     ensureProfile: EnsureZernioProfileUseCase;
     handleWebhook: HandleZernioWebhookUseCase;
   };
-  omegapay: {
-    receiveWebhook: ReceiveOmegaPayWebhookUseCase;
+  subscription: {
+    listPlans: ListSubscriptionPlansUseCase;
+    getPaymentMethods: GetPaymentMethodsUseCase;
+    getBillingSettings: GetBillingSettingsUseCase;
+    updateBillingSettings: UpdateBillingSettingsUseCase;
+    getMySubscription: GetMySubscriptionUseCase;
+    subscribe: SubscribeToPlanUseCase;
+    payInvoice: PaySubscriptionInvoiceUseCase;
+    changePlan: ChangeSubscriptionPlanUseCase;
+    cancel: CancelSubscriptionUseCase;
+    processInvoicePayment: ProcessSubscriptionInvoicePaymentUseCase;
+    assertForPublish: AssertSubscriptionForPublishUseCase;
+    assertForConnect: AssertSubscriptionForConnectUseCase;
+    jobs: {
+      generateRenewalInvoices: GenerateRenewalInvoicesJob;
+      sendRenewalReminders: SendRenewalReminderEmailsJob;
+      processOverdue: ProcessOverdueSubscriptionsJob;
+      expireUnpaidPixInvoices: ExpireUnpaidPixInvoicesJob;
+    };
+    expireForNonPayment: ExpireSubscriptionForNonPaymentUseCase;
+  };
+  oasyfy: {
+    receiveWebhook: ReceiveOasyfyWebhookUseCase;
+  };
+  stripe: {
+    receiveWebhook: ReceiveStripeWebhookUseCase;
   };
   admin: {
     getDashboardMetrics: GetAdminDashboardMetricsUseCase;
@@ -115,8 +153,14 @@ export interface IUseCases {
     listUsers: ListAdminUsersUseCase;
     getUserDetails: GetAdminUserDetailsUseCase;
     updateUserRole: UpdateAdminUserRoleUseCase;
-    listOmegaPayWebhooks: ListAdminOmegaPayWebhooksUseCase;
-    getOmegaPayWebhookDetails: GetAdminOmegaPayWebhookDetailsUseCase;
+    listSubscriptions: ListAdminSubscriptionsUseCase;
+    getSubscriptionDetails: GetAdminSubscriptionDetailsUseCase;
+    updateSubscription: UpdateAdminSubscriptionUseCase;
+    markInvoicePaid: AdminMarkInvoicePaidUseCase;
+    listOasyfyWebhooks: ListAdminOasyfyWebhooksUseCase;
+    listStripeWebhooks: ListAdminStripeWebhooksUseCase;
+    getBillingSettings: GetAdminBillingSettingsUseCase;
+    updateBillingSettings: UpdateAdminBillingSettingsUseCase;
   };
 }
 
@@ -124,9 +168,36 @@ export function createUseCases(
   repositories: IRepositories,
   infrastructure: IInfrastructure,
 ): IUseCases {
-  const processWalletRechargeFromWebhook = new ProcessWalletRechargeFromWebhookUseCase(
-    repositories.wallet,
+  const subscriptionEmailService = new SubscriptionEmailService(
+    infrastructure.emailService,
+  );
+
+  const provisionAccountSlots = new ProvisionAccountSlotsUseCase(
+    repositories.accountSlot,
+  );
+
+  const processInvoicePayment = new ProcessSubscriptionInvoicePaymentUseCase(
+    repositories.subscription,
+    repositories.subscriptionPlan,
+    provisionAccountSlots,
+  );
+
+  const expireForNonPayment = new ExpireSubscriptionForNonPaymentUseCase(
+    repositories.subscription,
+    repositories.socialConnectedAccount,
+    provisionAccountSlots,
+    infrastructure.zernioClient,
+    repositories.user,
+    subscriptionEmailService,
     infrastructure.logger,
+  );
+
+  const assertForPublish = new AssertSubscriptionForPublishUseCase(
+    repositories.subscription,
+  );
+
+  const assertForConnect = new AssertSubscriptionForConnectUseCase(
+    repositories.subscription,
   );
 
   const ensureZernioProfile = new EnsureZernioProfileUseCase(
@@ -170,6 +241,7 @@ export function createUseCases(
         repositories.userZernioQueue,
         ensureZernioProfile,
         infrastructure.zernioClient,
+        assertForPublish,
       ),
       getThumbnail: new GetPublicationThumbnailUseCase(repositories.publication),
       get: new GetPublicationUseCase(
@@ -198,28 +270,8 @@ export function createUseCases(
         infrastructure.zernioClient,
       ),
     },
-    wallet: {
-      getBalance: new GetWalletBalanceUseCase(repositories.wallet),
-      createPixRecharge: new CreateWalletPixRechargeUseCase(
-        repositories.wallet,
-        repositories.user,
-        infrastructure.omegaPayClient,
-        infrastructure.publicApiConfig,
-      ),
-      processRechargeFromWebhook: processWalletRechargeFromWebhook,
-      adminCredit: new AdminCreditWalletUseCase(repositories.wallet),
-    },
     accountSlot: {
-      getPricing: new GetAccountSlotPricingUseCase(),
       list: new ListAccountSlotsUseCase(repositories.accountSlot),
-      purchase: new PurchaseAccountSlotsUseCase(
-        repositories.accountSlot,
-        repositories.wallet,
-      ),
-      renew: new RenewAccountSlotUseCase(
-        repositories.accountSlot,
-        repositories.wallet,
-      ),
     },
     social: {
       createConnectSession: new CreateSocialConnectSessionUseCase(
@@ -231,6 +283,7 @@ export function createUseCases(
         repositories.workspace,
         infrastructure.zernioClient,
         infrastructure.frontendOrigin,
+        assertForConnect,
       ),
       completeConnect: new CompleteSocialConnectUseCase(
         repositories.socialConnectSession,
@@ -281,36 +334,120 @@ export function createUseCases(
         infrastructure.logger,
       ),
     },
-    omegapay: {
-      receiveWebhook: new ReceiveOmegaPayWebhookUseCase(
-        repositories.omegaPayWebhook,
-        processWalletRechargeFromWebhook,
+    subscription: {
+      listPlans: new ListSubscriptionPlansUseCase(repositories.subscriptionPlan),
+      getPaymentMethods: new GetPaymentMethodsUseCase(repositories.billingSettings),
+      getBillingSettings: new GetBillingSettingsUseCase(repositories.billingSettings),
+      updateBillingSettings: new UpdateBillingSettingsUseCase(
+        repositories.billingSettings,
+      ),
+      getMySubscription: new GetMySubscriptionUseCase(repositories.subscription),
+      subscribe: new SubscribeToPlanUseCase(
+        repositories.subscription,
+        repositories.subscriptionPlan,
+        repositories.billingSettings,
+        repositories.user,
+        infrastructure.oasyfyClient,
+        infrastructure.stripeClient,
+        infrastructure.publicApiConfig,
+        infrastructure.frontendOrigin,
+      ),
+      payInvoice: new PaySubscriptionInvoiceUseCase(
+        repositories.subscription,
+        repositories.user,
+        infrastructure.oasyfyClient,
+        infrastructure.stripeClient,
+        repositories.billingSettings,
+        infrastructure.publicApiConfig,
+        infrastructure.frontendOrigin,
+      ),
+      changePlan: new ChangeSubscriptionPlanUseCase(
+        repositories.subscription,
+        repositories.subscriptionPlan,
+      ),
+      cancel: new CancelSubscriptionUseCase(repositories.subscription),
+      processInvoicePayment,
+      assertForPublish,
+      assertForConnect,
+      jobs: {
+        generateRenewalInvoices: new GenerateRenewalInvoicesJob(
+          repositories.subscription,
+          repositories.billingSettings,
+          infrastructure.logger,
+        ),
+        sendRenewalReminders: new SendRenewalReminderEmailsJob(
+          repositories.subscription,
+          repositories.billingSettings,
+          repositories.user,
+          subscriptionEmailService,
+          infrastructure.logger,
+        ),
+        processOverdue: new ProcessOverdueSubscriptionsJob(
+          repositories.subscription,
+          repositories.billingSettings,
+          expireForNonPayment,
+          subscriptionEmailService,
+          repositories.user,
+          infrastructure.logger,
+        ),
+        expireUnpaidPixInvoices: new ExpireUnpaidPixInvoicesJob(
+          repositories.subscription,
+          infrastructure.logger,
+        ),
+      },
+      expireForNonPayment,
+    },
+    oasyfy: {
+      receiveWebhook: new ReceiveOasyfyWebhookUseCase(
+        repositories.oasyfyWebhook,
+        repositories.subscription,
+        processInvoicePayment,
+        infrastructure.logger,
+      ),
+    },
+    stripe: {
+      receiveWebhook: new ReceiveStripeWebhookUseCase(
+        repositories.stripeWebhook,
+        repositories.subscription,
+        processInvoicePayment,
+        infrastructure.stripeClient,
         infrastructure.logger,
       ),
     },
     admin: {
       getDashboardMetrics: new GetAdminDashboardMetricsUseCase(
-        repositories.user,
-        repositories.socialConnectedAccount,
-        repositories.publication,
+        repositories.adminAnalytics,
       ),
       getBillingMetrics: new GetAdminBillingMetricsUseCase(
-        repositories.walletBilling,
+        repositories.subscriptionBilling,
+        repositories.adminAnalytics,
       ),
       listUsers: new ListAdminUsersUseCase(
         repositories.user,
-        repositories.wallet,
+        repositories.subscription,
       ),
       getUserDetails: new GetAdminUserDetailsUseCase(
         repositories.user,
-        repositories.wallet,
+        repositories.subscription,
       ),
       updateUserRole: new UpdateAdminUserRoleUseCase(repositories.user),
-      listOmegaPayWebhooks: new ListAdminOmegaPayWebhooksUseCase(
-        repositories.omegaPayWebhook,
+      listSubscriptions: new ListAdminSubscriptionsUseCase(repositories.subscription),
+      getSubscriptionDetails: new GetAdminSubscriptionDetailsUseCase(
+        repositories.subscription,
       ),
-      getOmegaPayWebhookDetails: new GetAdminOmegaPayWebhookDetailsUseCase(
-        repositories.omegaPayWebhook,
+      updateSubscription: new UpdateAdminSubscriptionUseCase(repositories.subscription),
+      markInvoicePaid: new AdminMarkInvoicePaidUseCase(repositories.subscription),
+      listOasyfyWebhooks: new ListAdminOasyfyWebhooksUseCase(
+        repositories.oasyfyWebhook,
+      ),
+      listStripeWebhooks: new ListAdminStripeWebhooksUseCase(
+        repositories.stripeWebhook,
+      ),
+      getBillingSettings: new GetAdminBillingSettingsUseCase(
+        repositories.billingSettings,
+      ),
+      updateBillingSettings: new UpdateAdminBillingSettingsUseCase(
+        repositories.billingSettings,
       ),
     },
   };

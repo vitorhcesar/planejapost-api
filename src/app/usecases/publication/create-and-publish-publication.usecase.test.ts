@@ -265,6 +265,32 @@ function createUseCase(input: {
       execute: async () => "zernio-profile-1",
     } as unknown as EnsureZernioProfileUseCase,
     input.zernioPostService ?? new MockZernioPostService(),
+    {
+      execute: async () => ({
+        id: "sub-1",
+        userId: "user-1",
+        planId: "growth",
+        status: "active",
+        preferredPaymentMethod: null,
+        currentPeriodStart: new Date(),
+        currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        dueAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        gracePeriodEndsAt: null,
+        cancelAtPeriodEnd: false,
+        scheduledPlanId: null,
+        stripeCustomerId: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        plan: {
+          id: "growth",
+          name: "Crescimento",
+          priceMonthlyBrl: 179,
+          connectionsLimit: 10,
+          postsPerMonthLimit: 1800,
+          features: {},
+        },
+      }),
+    } as never,
   );
 }
 

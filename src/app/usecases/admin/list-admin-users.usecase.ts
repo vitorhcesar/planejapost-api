@@ -1,5 +1,5 @@
 import type { IUserRepository } from "@/domain/repositories/user.repository";
-import type { IWalletRepository } from "@/domain/repositories/wallet.repository";
+import type { ISubscriptionRepository } from "@/domain/repositories/subscription.repository";
 import { mapUserToDto } from "@/app/usecases/user/map-user-to-dto.util";
 import type { IAdminUserListDto } from "@/app/usecases/admin/dto/admin-user.dto";
 
@@ -12,7 +12,7 @@ export interface IListAdminUsersInput {
 export class ListAdminUsersUseCase {
   constructor(
     private readonly userRepository: IUserRepository,
-    private readonly walletRepository: IWalletRepository,
+    private readonly subscriptionRepository: ISubscriptionRepository,
   ) {}
 
   async execute(input: IListAdminUsersInput = {}): Promise<IAdminUserListDto> {
@@ -28,15 +28,16 @@ export class ListAdminUsersUseCase {
 
     const usersWithCounts = await Promise.all(
       users.map(async (user) => {
-        const [socialAccountsCount, wallet] = await Promise.all([
+        const [socialAccountsCount, subscription] = await Promise.all([
           this.userRepository.countSocialAccountsByUserId(user.id),
-          this.walletRepository.getOrCreateByUserId(user.id),
+          this.subscriptionRepository.findByUserId(user.id),
         ]);
 
         return {
           ...mapUserToDto(user),
           socialAccountsCount,
-          walletBalance: wallet.balance,
+          subscriptionStatus: subscription?.status ?? null,
+          subscriptionPlanName: subscription?.plan.name ?? null,
         };
       }),
     );

@@ -11,7 +11,6 @@ function mapSlot(row: {
   userId: string;
   socialConnectedAccountId: string | null;
   status: string;
-  expiresAt: Date;
   createdAt: Date;
   updatedAt: Date;
 }): IAccountSlot {
@@ -20,7 +19,6 @@ function mapSlot(row: {
     userId: row.userId,
     socialConnectedAccountId: row.socialConnectedAccountId,
     status: row.status as AccountSlotStatusEnum,
-    expiresAt: row.expiresAt,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -95,16 +93,15 @@ export class PrismaAccountSlotRepository
 
   async createMany(
     userId: string,
-    slots: Array<{ expiresAt: Date }>,
+    slots: Array<Record<string, never>>,
   ): Promise<IAccountSlot[]> {
     const created = await this.getPrismaClient().$transaction(async (tx) => {
       const rows = [];
 
-      for (const slot of slots) {
+      for (const _slot of slots) {
         const row = await tx.accountSlot.create({
           data: {
             userId,
-            expiresAt: slot.expiresAt,
             status: AccountSlotStatusEnum.ACTIVE,
           },
         });
@@ -133,26 +130,26 @@ export class PrismaAccountSlotRepository
     });
   }
 
-  async renew(slotId: string, expiresAt: Date): Promise<IAccountSlot> {
-    const row = await this.getPrismaClient().accountSlot.update({
+  async deactivate(slotId: string): Promise<void> {
+    await this.getPrismaClient().accountSlot.update({
       where: { id: slotId },
       data: {
-        expiresAt,
-        status: AccountSlotStatusEnum.ACTIVE,
+        status: AccountSlotStatusEnum.EXPIRED,
+        socialConnectedAccountId: null,
       },
     });
-
-    return mapSlot(row);
   }
 
-  async expireOverdueSlots(userId: string): Promise<void> {
-    await this.getPrismaClient().accountSlot.updateMany({
+  async findAvailableSlot(userId: string): Promise<IAccountSlot | null> {
+    const row = await this.getPrismaClient().accountSlot.findFirst({
       where: {
         userId,
         status: AccountSlotStatusEnum.ACTIVE,
-        expiresAt: { lt: new Date() },
+        socialConnectedAccountId: null,
       },
-      data: { status: AccountSlotStatusEnum.EXPIRED },
+      orderBy: { createdAt: "asc" },
     });
+
+    return row ? mapSlot(row) : null;
   }
 }

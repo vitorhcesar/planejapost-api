@@ -1,9 +1,9 @@
 import { BaseHttpRoute, type THttpRoute } from "@/http/routes/base-http-route";
 import { getAuthContext } from "@/http/client";
 import { AppRoleEnum } from "@/domain/enums/app-role.enum";
-import { OmegaPayWebhookEventEnum } from "@/domain/enums/omegapay.enum";
+import { SubscriptionStatusEnum } from "@/domain/enums/subscription.enum";
 import { adminBillingMetricsQuerySchema } from "@/http/validation/schemas/admin-billing-metrics.schema";
-import { adminCreditWalletBodySchema } from "@/http/validation/schemas/wallet.schema";
+import { updateBillingSettingsBodySchema } from "@/http/validation/schemas/subscription.schema";
 import { z } from "zod";
 
 const listUsersQuerySchema = z.object({
@@ -16,13 +16,19 @@ const updateRoleBodySchema = z.object({
   role: z.enum([AppRoleEnum.CLIENT, AppRoleEnum.ADMIN]),
 });
 
-const listOmegaPayWebhooksQuerySchema = z.object({
-  event: z.nativeEnum(OmegaPayWebhookEventEnum).optional(),
-  token: z.string().optional(),
-  receivedFrom: z.coerce.date().optional(),
-  receivedTo: z.coerce.date().optional(),
+const listSubscriptionsQuerySchema = z.object({
+  status: z.string().optional(),
+  planId: z.string().optional(),
   page: z.coerce.number().int().positive().optional(),
   limit: z.coerce.number().int().positive().max(100).optional(),
+});
+
+const updateSubscriptionBodySchema = z.object({
+  planId: z.string().optional(),
+  status: z.string().optional(),
+  currentPeriodEnd: z.coerce.date().optional(),
+  dueAt: z.coerce.date().optional(),
+  cancelAtPeriodEnd: z.boolean().optional(),
 });
 
 export class AdminRoutes extends BaseHttpRoute {
@@ -34,10 +40,15 @@ export class AdminRoutes extends BaseHttpRoute {
       listUsers,
       getUserDetails,
       updateUserRole,
-      listOmegaPayWebhooks,
-      getOmegaPayWebhookDetails,
+      listSubscriptions,
+      getSubscriptionDetails,
+      updateSubscription,
+      markInvoicePaid,
+      listOasyfyWebhooks,
+      listStripeWebhooks,
+      getBillingSettings,
+      updateBillingSettings,
     } = this.container.useCases.admin;
-    const { adminCredit } = this.container.useCases.wallet;
 
     route.get("/admin/dashboard/metrics", async () => {
       const metrics = await getDashboardMetrics.execute();
@@ -46,8 +57,80 @@ export class AdminRoutes extends BaseHttpRoute {
 
     route.get("/admin/dashboard/billing-metrics", async (context) => {
       const query = adminBillingMetricsQuerySchema.parse(context.query);
-      const metrics = await getBillingMetrics.execute(query);
+      const metrics = await getBillingMetrics.execute({
+        from: query.from,
+        to: query.to,
+      });
       return this.successResponse("OK", metrics, 200);
+    });
+
+    route.get("/admin/billing/settings", async () => {
+      const settings = await getBillingSettings.execute();
+      return this.successResponse("OK", settings, 200);
+    });
+
+    route.patch("/admin/billing/settings", async (context) => {
+      const body = updateBillingSettingsBodySchema.parse(context.body);
+      const settings = await updateBillingSettings.execute(body);
+      return this.successResponse("Configurações atualizadas", settings, 200);
+    });
+
+    route.get("/admin/subscriptions", async (context) => {
+      const query = listSubscriptionsQuerySchema.parse(context.query);
+      const result = await listSubscriptions.execute(query);
+      return this.successResponse("OK", result, 200);
+    });
+
+    route.get("/admin/subscriptions/:id", async (context) => {
+      const { id } = context.params;
+      const result = await getSubscriptionDetails.execute(id);
+      return this.successResponse("OK", result, 200);
+    });
+
+    route.patch("/admin/subscriptions/:id", async (context) => {
+      const { id } = context.params;
+      const body = updateSubscriptionBodySchema.parse(context.body);
+      const subscription = await updateSubscription.execute(id, {
+        ...body,
+        status: body.status as SubscriptionStatusEnum | undefined,
+      });
+      return this.successResponse("Assinatura atualizada", subscription, 200);
+    });
+
+    route.patch(
+      "/admin/subscriptions/:id/invoices/:invoiceId",
+      async (context) => {
+        const { invoiceId } = context.params;
+        const invoice = await markInvoicePaid.execute(invoiceId);
+        return this.successResponse("Fatura marcada como paga", invoice, 200);
+      },
+    );
+
+    route.get("/admin/billing/oasyfy-webhooks", async (context) => {
+      const query = z
+        .object({
+          event: z.string().optional(),
+          token: z.string().optional(),
+          receivedFrom: z.coerce.date().optional(),
+          receivedTo: z.coerce.date().optional(),
+          page: z.coerce.number().int().positive().optional(),
+          limit: z.coerce.number().int().positive().max(100).optional(),
+        })
+        .parse(context.query);
+      const result = await listOasyfyWebhooks.execute(query);
+      return this.successResponse("OK", result, 200);
+    });
+
+    route.get("/admin/billing/stripe-webhooks", async (context) => {
+      const query = z
+        .object({
+          eventType: z.string().optional(),
+          page: z.coerce.number().int().positive().optional(),
+          limit: z.coerce.number().int().positive().max(100).optional(),
+        })
+        .parse(context.query);
+      const result = await listStripeWebhooks.execute(query);
+      return this.successResponse("OK", result, 200);
     });
 
     route.get("/admin/users", async (context) => {
@@ -74,33 +157,6 @@ export class AdminRoutes extends BaseHttpRoute {
       });
 
       return this.successResponse("Papel atualizado", user, 200);
-    });
-
-    route.post("/admin/users/:userId/wallet/credit", async (context) => {
-      const { userId } = context.params;
-      const body = adminCreditWalletBodySchema.parse(context.body);
-      const { authUserId } = getAuthContext(context);
-
-      const wallet = await adminCredit.execute({
-        userId,
-        amount: body.amount,
-        description: body.description,
-        actorUserId: authUserId!,
-      });
-
-      return this.successResponse("Saldo creditado", wallet, 200);
-    });
-
-    route.get("/admin/omegapay/webhooks", async (context) => {
-      const query = listOmegaPayWebhooksQuerySchema.parse(context.query);
-      const result = await listOmegaPayWebhooks.execute(query);
-      return this.successResponse("OK", result, 200);
-    });
-
-    route.get("/admin/omegapay/webhooks/:webhookId", async (context) => {
-      const { webhookId } = context.params;
-      const webhook = await getOmegaPayWebhookDetails.execute(webhookId);
-      return this.successResponse("OK", webhook, 200);
     });
 
     return route;

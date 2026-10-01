@@ -15,9 +15,7 @@ export async function mapSocialConnectedAccountToDto(
   ]);
 
   const isExpired =
-    slot !== null &&
-    (slot.status === AccountSlotStatusEnum.EXPIRED ||
-      slot.expiresAt.getTime() < Date.now());
+    slot !== null && slot.status === AccountSlotStatusEnum.EXPIRED;
 
   return {
     id: account.id,

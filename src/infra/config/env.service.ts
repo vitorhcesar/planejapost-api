@@ -17,8 +17,11 @@ const envSchema = z.object({
   PUBLIC_API_URL: z.string().url(),
   REDIS_HOST: z.string().min(1).default("localhost"),
   REDIS_PORT: z.coerce.number().int().positive().default(6379),
-  OMEGAPAY_PUBLIC_KEY: z.string().min(1).optional(),
-  OMEGAPAY_SECRET_KEY: z.string().min(1).optional(),
+  OASYFY_PUBLIC_KEY: z.string().min(1).optional(),
+  OASYFY_SECRET_KEY: z.string().min(1).optional(),
+  STRIPE_SECRET_KEY: z.string().min(1).optional(),
+  STRIPE_WEBHOOK_SECRET: z.string().min(1).optional(),
+  STRIPE_PUBLISHABLE_KEY: z.string().min(1).optional(),
   SMTP_HOST: z.string().min(1),
   SMTP_PORT: z.coerce.number().int().positive(),
   SMTP_USERNAME: z.string().min(1),
@@ -120,20 +123,40 @@ export class EnvService {
     return this.env.REDIS_PORT;
   }
 
-  get omegapayPublicKey(): string {
-    if (!this.env.OMEGAPAY_PUBLIC_KEY) {
-      throw new Error("OMEGAPAY_PUBLIC_KEY não configurado");
+  get oasyfyPublicKey(): string {
+    if (!this.env.OASYFY_PUBLIC_KEY) {
+      throw new Error("OASYFY_PUBLIC_KEY não configurado");
     }
 
-    return this.env.OMEGAPAY_PUBLIC_KEY;
+    return this.env.OASYFY_PUBLIC_KEY;
   }
 
-  get omegapaySecretKey(): string {
-    if (!this.env.OMEGAPAY_SECRET_KEY) {
-      throw new Error("OMEGAPAY_SECRET_KEY não configurado");
+  get oasyfySecretKey(): string {
+    if (!this.env.OASYFY_SECRET_KEY) {
+      throw new Error("OASYFY_SECRET_KEY não configurado");
     }
 
-    return this.env.OMEGAPAY_SECRET_KEY;
+    return this.env.OASYFY_SECRET_KEY;
+  }
+
+  get stripeSecretKey(): string {
+    if (!this.env.STRIPE_SECRET_KEY) {
+      throw new Error("STRIPE_SECRET_KEY não configurado");
+    }
+
+    return this.env.STRIPE_SECRET_KEY;
+  }
+
+  get stripeWebhookSecret(): string {
+    if (!this.env.STRIPE_WEBHOOK_SECRET) {
+      throw new Error("STRIPE_WEBHOOK_SECRET não configurado");
+    }
+
+    return this.env.STRIPE_WEBHOOK_SECRET;
+  }
+
+  get stripePublishableKey(): string | undefined {
+    return this.env.STRIPE_PUBLISHABLE_KEY;
   }
 
   get smtpHost(): string {

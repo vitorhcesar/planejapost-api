@@ -7,6 +7,7 @@ import { mapSocialConnectedAccountToDto } from "@/app/usecases/social/map-social
 import { EnsureZernioProfileUseCase } from "@/app/usecases/zernio/ensure-zernio-profile.usecase";
 import { SocialConnectedAccount } from "@/domain/entities/social-connected-account.entity";
 import { SocialConnectSession } from "@/domain/entities/social-connect-session.entity";
+import type { AssertSubscriptionForConnectUseCase } from "@/app/usecases/subscription/subscription.usecases";
 import { AccountSlotStatusEnum } from "@/domain/enums/account-slot.enum";
 import { ConnectModeEnum } from "@/domain/enums/connect-mode.enum";
 import {
@@ -34,6 +35,7 @@ export class CreateSocialConnectSessionUseCase {
     private readonly workspaceRepository: IWorkspaceRepository,
     private readonly zernioConnectService: IZernioConnectService,
     private readonly frontendOrigin: string,
+    private readonly assertSubscriptionForConnectUseCase: AssertSubscriptionForConnectUseCase,
   ) {}
 
   async execute(input: {
@@ -47,7 +49,7 @@ export class CreateSocialConnectSessionUseCase {
       throw new AppError("Plataforma não suportada", 400, "unsupported_platform");
     }
 
-    await this.accountSlotRepository.expireOverdueSlots(input.userId);
+    await this.assertSubscriptionForConnectUseCase.execute(input.userId);
 
     const slot = await this.accountSlotRepository.findByIdAndUserId(
       input.slotId,
@@ -55,16 +57,12 @@ export class CreateSocialConnectSessionUseCase {
     );
 
     if (!slot) {
-      throw new AppError("Slot não encontrado", 404, "account_slot_not_found");
+      throw new AppError("Conexão não encontrada", 404, "account_slot_not_found");
     }
 
-    const isExpired =
-      slot.status === AccountSlotStatusEnum.EXPIRED ||
-      slot.expiresAt.getTime() < Date.now();
-
-    if (isExpired) {
+    if (slot.status === AccountSlotStatusEnum.EXPIRED) {
       throw new AppError(
-        "Este slot está vencido. Renove-o antes de conectar uma conta.",
+        "Esta conexão não está disponível no seu plano",
         400,
         "account_slot_expired",
       );
@@ -165,8 +163,6 @@ export class CompleteSocialConnectUseCase {
     if (session.isExpired()) {
       throw new AppError("Sessão de conexão expirada", 400, "connect_session_expired");
     }
-
-    await this.accountSlotRepository.expireOverdueSlots(input.userId);
 
     const slot = await this.accountSlotRepository.findByIdAndUserId(
       session.accountSlotId,

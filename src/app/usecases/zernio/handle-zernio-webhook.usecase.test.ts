@@ -176,8 +176,6 @@ class InMemoryAccountSlotRepository implements IAccountSlotRepository {
     private readonly slot: IAccountSlot,
   ) {}
 
-  async expireOverdueSlots() {}
-
   async findByIdAndUserId(id: string, userId: string) {
     if (this.slot.id === id && this.slot.userId === userId) {
       return this.slot;
@@ -209,8 +207,10 @@ class InMemoryAccountSlotRepository implements IAccountSlotRepository {
 
   async releaseAccount() {}
 
-  async renew() {
-    return this.slot;
+  async deactivate() {}
+
+  async findAvailableSlot() {
+    return null;
   }
 }
 
@@ -288,7 +288,6 @@ function createSlot(): IAccountSlot {
     userId: "user-1",
     socialConnectedAccountId: null,
     status: AccountSlotStatusEnum.ACTIVE,
-    expiresAt: new Date(Date.now() + 60_000),
     createdAt: new Date(),
     updatedAt: new Date(),
   };

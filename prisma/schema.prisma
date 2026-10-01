@@ -26,8 +26,8 @@ model User {
   accountSlots             AccountSlot[]
   publications             Publication[]
   socialConnectSessions    SocialConnectSession[]
-  wallet                   Wallet?
   publicationQueue         UserZernioQueue?
+  subscription             Subscription?
 
   @@unique([email])
   @@map("user")
@@ -165,13 +165,11 @@ model AccountSlot {
   socialConnectedAccountId  String?                 @unique
   socialConnectedAccount    SocialConnectedAccount? @relation(fields: [socialConnectedAccountId], references: [id], onDelete: SetNull)
   status                    String                  @default("active")
-  expiresAt                 DateTime
   createdAt                 DateTime                @default(now())
   updatedAt                 DateTime                @updatedAt
 
   @@index([userId])
   @@index([status])
-  @@index([expiresAt])
   @@map("account_slot")
 }
 
@@ -258,7 +256,119 @@ model ZernioWebhookEvent {
   @@map("zernio_webhook_event")
 }
 
-model OmegaPayWebhookEvent {
+model BillingSettings {
+  id                        String   @id @default("default")
+  pixPaymentsEnabled        Boolean  @default(true)
+  cardPaymentsEnabled       Boolean  @default(false)
+  gracePeriodDays           Int      @default(3)
+  renewalReminderDays       Int[]    @default([7, 3])
+  invoiceGenerationLeadDays Int      @default(7)
+  updatedAt                 DateTime @updatedAt
+
+  @@map("billing_settings")
+}
+
+model SubscriptionPlan {
+  id                 String         @id
+  name               String
+  priceMonthlyBrl    Decimal        @db.Decimal(12, 2)
+  connectionsLimit   Int
+  postsPerMonthLimit Int
+  features           Json
+  stripePriceId      String?
+  sortOrder          Int
+  isActive           Boolean        @default(true)
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+  subscriptions      Subscription[]
+
+  @@map("subscription_plan")
+}
+
+model Subscription {
+  id                     String                    @id @default(cuid())
+  userId                 String                    @unique
+  user                   User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planId                 String
+  plan                   SubscriptionPlan          @relation(fields: [planId], references: [id])
+  status                 String
+  preferredPaymentMethod String?
+  currentPeriodStart     DateTime?
+  currentPeriodEnd       DateTime?
+  dueAt                  DateTime?
+  gracePeriodEndsAt      DateTime?
+  cancelAtPeriodEnd      Boolean                   @default(false)
+  scheduledPlanId        String?
+  stripeCustomerId       String?
+  createdAt              DateTime                  @default(now())
+  updatedAt              DateTime                  @updatedAt
+  invoices               SubscriptionInvoice[]
+  usageRecords           SubscriptionUsageRecord[]
+  reminderLogs           SubscriptionReminderLog[]
+
+  @@index([status])
+  @@index([dueAt])
+  @@index([gracePeriodEndsAt])
+  @@map("subscription")
+}
+
+model SubscriptionInvoice {
+  id                      String       @id @default(cuid())
+  subscriptionId          String
+  subscription            Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  type                    String
+  status                  String
+  amount                  Decimal      @db.Decimal(12, 2)
+  currency                String       @default("BRL")
+  paymentMethod           String?
+  dueAt                   DateTime
+  paidAt                  DateTime?
+  periodStart             DateTime?
+  periodEnd               DateTime?
+  oasyfyTransactionId     String?
+  pixCode                 String?
+  pixImageUrl             String?
+  pixExpiresAt            DateTime?
+  stripeCheckoutSessionId String?
+  stripePaymentIntentId   String?
+  createdAt               DateTime     @default(now())
+  updatedAt               DateTime     @updatedAt
+
+  @@index([subscriptionId])
+  @@index([status])
+  @@index([dueAt])
+  @@index([oasyfyTransactionId])
+  @@index([stripeCheckoutSessionId])
+  @@map("subscription_invoice")
+}
+
+model SubscriptionUsageRecord {
+  id              String       @id @default(cuid())
+  subscriptionId  String
+  subscription    Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  periodStart     DateTime
+  periodEnd       DateTime
+  postsUsed       Int          @default(0)
+  connectionsUsed Int          @default(0)
+  updatedAt       DateTime     @updatedAt
+
+  @@unique([subscriptionId, periodStart])
+  @@map("subscription_usage_record")
+}
+
+model SubscriptionReminderLog {
+  id             String       @id @default(cuid())
+  subscriptionId String
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  invoiceId      String?
+  daysBeforeDue  Int
+  sentAt         DateTime     @default(now())
+
+  @@unique([subscriptionId, invoiceId, daysBeforeDue])
+  @@map("subscription_reminder_log")
+}
+
+model OasyfyWebhookEvent {
   id         String   @id @default(cuid())
   event      String
   token      String
@@ -267,55 +377,16 @@ model OmegaPayWebhookEvent {
 
   @@index([event])
   @@index([receivedAt])
-  @@map("omegapay_webhook_event")
+  @@map("oasyfy_webhook_event")
 }
 
-model Wallet {
-  id           String              @id @default(cuid())
-  userId       String              @unique
-  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  balance      Decimal             @default(0) @db.Decimal(12, 2)
-  createdAt    DateTime            @default(now())
-  updatedAt    DateTime            @updatedAt
-  transactions WalletTransaction[]
-  recharges    WalletRecharge[]
+model StripeWebhookEvent {
+  id         String   @id @default(cuid())
+  eventId    String   @unique
+  eventType  String
+  payload    Json
+  receivedAt DateTime @default(now())
 
-  @@map("wallet")
-}
-
-model WalletTransaction {
-  id           String   @id @default(cuid())
-  walletId     String
-  wallet       Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
-  type         String
-  amount       Decimal  @db.Decimal(12, 2)
-  balanceAfter Decimal  @db.Decimal(12, 2)
-  description  String?
-  referenceKey String?  @unique
-  metadata     Json?
-  createdAt    DateTime @default(now())
-
-  @@index([walletId])
-  @@index([createdAt])
-  @@map("wallet_transaction")
-}
-
-model WalletRecharge {
-  id                    String    @id @default(cuid())
-  walletId              String
-  wallet                Wallet    @relation(fields: [walletId], references: [id], onDelete: Cascade)
-  identifier            String    @unique
-  amount                Decimal   @db.Decimal(12, 2)
-  status                String    @default("pending")
-  omegapayTransactionId String?
-  pixCode               String?
-  pixImageUrl           String?
-  paidAt                DateTime?
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
-
-  @@index([walletId])
-  @@index([status])
-  @@index([omegapayTransactionId])
-  @@map("wallet_recharge")
+  @@index([eventType])
+  @@map("stripe_webhook_event")
 }

@@ -16,6 +16,7 @@ import type { ILogger } from "@/domain/services/logger.service";
 import type { IPublicationDto } from "@/app/usecases/publication/dto/publication.dto";
 import { parseZernioScheduledFor } from "@/app/usecases/publication/publication-queue.usecase";
 import { mapPublicationToDto } from "@/app/usecases/publication/map-publication-to-dto.util";
+import type { AssertSubscriptionForPublishUseCase } from "@/app/usecases/subscription/subscription.usecases";
 import { EnsureZernioProfileUseCase } from "@/app/usecases/zernio/ensure-zernio-profile.usecase";
 import type { IZernioPostService } from "@/domain/zernio/zernio-post.service";
 import { assertCaptionWithinPlatformLimits } from "@/domain/utils/validate-publication-caption.util";
@@ -55,12 +56,15 @@ export class CreateAndPublishPublicationUseCase {
     private readonly userZernioQueueRepository: IUserZernioQueueRepository,
     private readonly ensureZernioProfileUseCase: EnsureZernioProfileUseCase,
     private readonly zernioPostService: IZernioPostService,
+    private readonly assertSubscriptionForPublishUseCase: AssertSubscriptionForPublishUseCase,
   ) {}
 
   async execute(
     authUserId: string,
     input: ICreatePublicationInput,
   ): Promise<IPublicationDto> {
+    await this.assertSubscriptionForPublishUseCase.execute(authUserId);
+
     const publishMode = this.resolvePublishMode(input);
     const isQueued = publishMode === PublishModeEnum.QUEUED;
     const isScheduled = publishMode === PublishModeEnum.SCHEDULED;

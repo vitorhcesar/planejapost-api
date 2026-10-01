@@ -2,7 +2,8 @@ import type { IUserDto } from "@/app/usecases/user/dto/user.dto";
 
 export interface IAdminUserListItemDto extends IUserDto {
   socialAccountsCount: number;
-  walletBalance: number;
+  subscriptionStatus: string | null;
+  subscriptionPlanName: string | null;
 }
 
 export interface IAdminUserListDto {
@@ -12,5 +13,6 @@ export interface IAdminUserListDto {
 
 export interface IAdminUserDetailsDto extends IUserDto {
   socialAccountsCount: number;
-  walletBalance: number;
+  subscriptionStatus: string | null;
+  subscriptionPlanName: string | null;
 }
