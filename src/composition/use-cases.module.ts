@@ -245,7 +245,13 @@ export function createUseCases(
   return {
     user: {
       getAuthenticatedUser: new GetAuthenticatedUserUseCase(repositories.user),
-      deleteAccount: new DeleteUserAccountUseCase(repositories.user),
+      deleteAccount: new DeleteUserAccountUseCase(
+        repositories.user,
+        repositories.socialConnectedAccount,
+        repositories.subscription,
+        infrastructure.zernioClient,
+        infrastructure.logger,
+      ),
     },
     emailVerification: {
       sendOtp: new SendEmailVerificationOtpUseCase(
