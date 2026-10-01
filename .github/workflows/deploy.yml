@@ -6,13 +6,12 @@ on:
       - 'v*.*.*'
   workflow_dispatch:
 
-# Garante que apenas um deploy rode por vez
 concurrency:
   group: deploy-production
   cancel-in-progress: false
 
 env:
-  VPS_PORT: ${{ secrets.VPS_PORT || '22' }}
+  VPS_DEPLOY_PATH: ~/planejapost-api
 
 jobs:
   deploy:
@@ -22,144 +21,71 @@ jobs:
     environment: production
 
     steps:
-      # ──────────────────────────────────────────────────────────────────────
-      # 1. Checkout do código
-      # ──────────────────────────────────────────────────────────────────────
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # ──────────────────────────────────────────────────────────────────────
-      # 2. Gerar arquivo .env a partir dos secrets
-      # ──────────────────────────────────────────────────────────────────────
-      # Domínio de produção: app.planejapost.com (frontend) / api.planejapost.com (API)
-      #
-      # Secrets de URL (GitHub production):
-      #   CORS_ORIGIN             = https://app.planejapost.com
-      #   BETTER_AUTH_URL         = https://api.planejapost.com
-      #   PUBLIC_API_URL          = https://api.planejapost.com
-      #   INSTAGRAM_REDIRECT_URI  = https://api.planejapost.com/api/v1/instagram/connect/callback
-      # Cada usuário configura sua Meta App e recebe URLs exclusivas de compliance.
-      #   SMTP_FROM               = noreply@planejapost.com
-      #
-      # Conexões internas Docker (hostnames dos containers):
-      #   DATABASE_URL   = postgresql://USER:PASS@planejapost-postgres:5432/DB?schema=public
-      #   REDIS_HOST     = planejapost-redis
+      # Secrets do environment production:
+      #   VPS_SSH_KEY  — chave privada SSH completa
+      #   VPS_HOST     — IP ou hostname da VPS
+      #   VPS_USER     — usuário SSH
+      #   PROD_ENV     — conteúdo completo do prod.env (vira .env na VPS)
       - name: Create .env file
-        run: |
-          cat > .env << 'ENVEOF'
-          PORT=${{ secrets.PORT }}
-          NODE_ENV=production
-          DATABASE_URL=${{ secrets.DATABASE_URL }}
-          BETTER_AUTH_SECRET=${{ secrets.BETTER_AUTH_SECRET }}
-          BETTER_AUTH_URL=${{ secrets.BETTER_AUTH_URL }}
-          CORS_ORIGIN=${{ secrets.CORS_ORIGIN }}
-          INSTAGRAM_REDIRECT_URI=${{ secrets.INSTAGRAM_REDIRECT_URI }}
-          INSTAGRAM_OAUTH_SCOPES=${{ secrets.INSTAGRAM_OAUTH_SCOPES }}
-          META_APP_CONFIG_ENCRYPTION_KEY=${{ secrets.META_APP_CONFIG_ENCRYPTION_KEY }}
-          PUBLIC_API_URL=${{ secrets.PUBLIC_API_URL }}
-          ZERNIO_API_KEY=${{ secrets.ZERNIO_API_KEY }}
-          ZERNIO_WEBHOOK_SECRET=${{ secrets.ZERNIO_WEBHOOK_SECRET }}
-          REDIS_HOST=${{ secrets.REDIS_HOST }}
-          REDIS_PORT=${{ secrets.REDIS_PORT }}
-          OASYFY_PUBLIC_KEY=${{ secrets.OASYFY_PUBLIC_KEY }}
-          OASYFY_SECRET_KEY=${{ secrets.OASYFY_SECRET_KEY }}
-          STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}
-          STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }}
-          STRIPE_PUBLISHABLE_KEY=${{ secrets.STRIPE_PUBLISHABLE_KEY }}
-          SMTP_HOST=${{ secrets.SMTP_HOST }}
-          SMTP_PORT=${{ secrets.SMTP_PORT }}
-          SMTP_USERNAME=${{ secrets.SMTP_USERNAME }}
-          SMTP_PASSWORD=${{ secrets.SMTP_PASSWORD }}
-          SMTP_FROM=${{ secrets.SMTP_FROM }}
-          SMTP_SECURE=${{ secrets.SMTP_SECURE }}
-          POSTGRES_USER=${{ secrets.POSTGRES_USER }}
-          POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
-          POSTGRES_DB=${{ secrets.POSTGRES_DB }}
-          ENVEOF
+        env:
+          PROD_ENV: ${{ secrets.PROD_ENV }}
+        run: printf '%s\n' "$PROD_ENV" > .env
 
-      # ──────────────────────────────────────────────────────────────────────
-      # 3. Carregar a chave SSH via ssh-agent (garante formatação correta)
-      # ──────────────────────────────────────────────────────────────────────
       - name: Setup SSH agent
         uses: webfactory/ssh-agent@v0.9.1
         with:
           ssh-private-key: ${{ secrets.VPS_SSH_KEY }}
 
-      # ──────────────────────────────────────────────────────────────────────
-      # 4. Registrar a chave do host da VPS no known_hosts
-      #    Falha explícita se não conseguir nenhuma chave (host inacessível)
-      # ──────────────────────────────────────────────────────────────────────
       - name: Add VPS to known hosts
         run: |
           mkdir -p ~/.ssh
-          KEYS=$(ssh-keyscan -p "${{ env.VPS_PORT }}" -T 15 -t rsa,ecdsa,ed25519 "${{ secrets.VPS_HOST }}" 2>/dev/null)
+          KEYS=$(ssh-keyscan -T 15 -t rsa,ecdsa,ed25519 "${{ secrets.VPS_HOST }}" 2>/dev/null)
           if [ -z "$KEYS" ]; then
-            echo "::error::ssh-keyscan não retornou nenhuma chave. Verifique VPS_HOST (${{ secrets.VPS_HOST }}) e VPS_PORT (${{ env.VPS_PORT }})."
+            echo "::error::ssh-keyscan não retornou nenhuma chave. Verifique VPS_HOST (${{ secrets.VPS_HOST }})."
             exit 1
           fi
           echo "$KEYS" >> ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
-          echo "Host keys registrados com sucesso."
 
-      # ──────────────────────────────────────────────────────────────────────
-      # 5. Criar diretório de deploy na VPS (idempotente)
-      # ──────────────────────────────────────────────────────────────────────
       - name: Ensure deploy directory exists
         run: |
-          ssh -p "${{ env.VPS_PORT }}" \
-            -o StrictHostKeyChecking=yes \
-            -o BatchMode=yes \
+          ssh -o StrictHostKeyChecking=yes -o BatchMode=yes \
             "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
-            "mkdir -p ${{ secrets.VPS_DEPLOY_PATH }}"
+            "mkdir -p ${{ env.VPS_DEPLOY_PATH }}"
 
-      # ──────────────────────────────────────────────────────────────────────
-      # 6. Sincronizar código-fonte para a VPS via rsync
-      #    Exclui: node_modules, .git, .env, generated (recriado pelo Docker)
-      # ──────────────────────────────────────────────────────────────────────
       - name: Sync source files to VPS
         run: |
           rsync -az --delete \
             --exclude='.git/' \
             --exclude='node_modules/' \
             --exclude='.env' \
+            --exclude='prod.env' \
             --exclude='generated/' \
             --exclude='.cursor/' \
-            -e "ssh -p ${{ env.VPS_PORT }} -o StrictHostKeyChecking=yes -o BatchMode=yes" \
-            ./ "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:${{ secrets.VPS_DEPLOY_PATH }}/"
+            -e "ssh -o StrictHostKeyChecking=yes -o BatchMode=yes" \
+            ./ "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:${{ env.VPS_DEPLOY_PATH }}/"
 
-      # ──────────────────────────────────────────────────────────────────────
-      # 7. Copiar .env gerado para a VPS
-      # ──────────────────────────────────────────────────────────────────────
       - name: Copy .env to VPS
         run: |
-          scp -P "${{ env.VPS_PORT }}" \
-            -o StrictHostKeyChecking=yes \
-            -o BatchMode=yes \
-            .env "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:${{ secrets.VPS_DEPLOY_PATH }}/.env"
+          scp -o StrictHostKeyChecking=yes -o BatchMode=yes \
+            .env "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:${{ env.VPS_DEPLOY_PATH }}/.env"
 
-      # ──────────────────────────────────────────────────────────────────────
-      # 8. Build e deploy com Docker Compose
-      # ──────────────────────────────────────────────────────────────────────
       - name: Deploy with Docker Compose
         run: |
-          ssh -p "${{ env.VPS_PORT }}" \
-            -o StrictHostKeyChecking=yes \
-            -o BatchMode=yes \
+          ssh -o StrictHostKeyChecking=yes -o BatchMode=yes \
             "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
-            "cd ${{ secrets.VPS_DEPLOY_PATH }} && \
+            "cd ${{ env.VPS_DEPLOY_PATH }} && \
              docker compose -f docker-compose.prod.yml pull --ignore-buildable && \
              docker compose -f docker-compose.prod.yml up -d --build --remove-orphans && \
              docker image prune -f"
 
-      # ──────────────────────────────────────────────────────────────────────
-      # 9. Verificar saúde da aplicação
-      # ──────────────────────────────────────────────────────────────────────
       - name: Health check
         run: |
           echo "Aguardando aplicação inicializar..."
           sleep 15
-          ssh -p "${{ env.VPS_PORT }}" \
-            -o StrictHostKeyChecking=yes \
-            -o BatchMode=yes \
+          ssh -o StrictHostKeyChecking=yes -o BatchMode=yes \
             "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
             "docker inspect --format='{{.State.Health.Status}}' planejapost-api"
