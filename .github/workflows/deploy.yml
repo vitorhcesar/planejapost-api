@@ -31,15 +31,15 @@ jobs:
       # ──────────────────────────────────────────────────────────────────────
       # 2. Gerar arquivo .env a partir dos secrets
       # ──────────────────────────────────────────────────────────────────────
-      # Domínio de produção: app.planejapost.com.br (frontend) / api.planejapost.com.br (API)
+      # Domínio de produção: app.planejapost.com (frontend) / api.planejapost.com (API)
       #
       # Secrets de URL (GitHub production):
-      #   CORS_ORIGIN             = https://app.planejapost.com.br
-      #   BETTER_AUTH_URL         = https://api.planejapost.com.br
-      #   PUBLIC_API_URL          = https://api.planejapost.com.br
-      #   INSTAGRAM_REDIRECT_URI  = https://api.planejapost.com.br/api/v1/instagram/connect/callback
+      #   CORS_ORIGIN             = https://app.planejapost.com
+      #   BETTER_AUTH_URL         = https://api.planejapost.com
+      #   PUBLIC_API_URL          = https://api.planejapost.com
+      #   INSTAGRAM_REDIRECT_URI  = https://api.planejapost.com/api/v1/instagram/connect/callback
       # Cada usuário configura sua Meta App e recebe URLs exclusivas de compliance.
-      #   SMTP_FROM               = noreply@planejapost.com.br
+      #   SMTP_FROM               = noreply@planejapost.com
       #
       # Conexões internas Docker (hostnames dos containers):
       #   DATABASE_URL   = postgresql://USER:PASS@planejapost-postgres:5432/DB?schema=public

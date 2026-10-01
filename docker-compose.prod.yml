@@ -2,7 +2,7 @@ name: planejapost
 
 # Compose de produção. Variáveis de ambiente vêm do arquivo .env na mesma pasta.
 #
-# Domínio público: https://app.planejapost.com.br (frontend) / https://api.planejapost.com.br (API)
+# Domínio público: https://app.planejapost.com (frontend) / https://api.planejapost.com (API)
 #
 # Conexões internas (app → banco, redis) usam os nomes dos containers:
 #   DATABASE_URL   = postgresql://USER:PASS@planejapost-postgres:5432/DB?schema=public
