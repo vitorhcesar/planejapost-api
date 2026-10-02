@@ -113,6 +113,10 @@ export class SocialConnectSession {
     return this.props.expiresAt;
   }
 
+  get createdAt(): Date {
+    return this.props.createdAt;
+  }
+
   get completedAt(): Date | null {
     return this.props.completedAt;
   }

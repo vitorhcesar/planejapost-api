@@ -239,6 +239,17 @@ export class CompleteSocialConnectUseCase {
       existingAccount.isConnected() &&
       session.reconnectSocialAccountId !== existingAccount.id
     ) {
+      // Conclusão concorrente da mesma sessão: a conta foi vinculada durante este fluxo.
+      if (existingAccount.connectedAt >= session.createdAt) {
+        session.markAsCompleted(existingAccount.id);
+        await this.socialConnectSessionRepository.save(session);
+
+        return mapSocialConnectedAccountToDto(
+          existingAccount,
+          this.workspaceRepository,
+        );
+      }
+
       throw new AppError(
         "Esta conta já está conectada",
         400,
