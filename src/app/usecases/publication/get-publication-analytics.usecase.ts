@@ -75,12 +75,9 @@ export class GetPublicationAnalyticsUseCase {
       );
 
       if (!analytics) {
-        return (
-          cachedAnalytics?.analytics ??
-          buildUnavailableResponse(
-            "pending",
-            "Ainda não há analytics — snapshots diários serão preenchidos após o próximo sync.",
-          )
+        return buildUnavailableResponse(
+          "pending",
+          "Ainda não há analytics — snapshots diários serão preenchidos após o próximo sync.",
         );
       }
 

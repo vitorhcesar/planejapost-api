@@ -20,6 +20,7 @@ import type { IZernioAnalyticsSyncStateRepository } from "@/domain/repositories/
 import type { IZernioWebhookEventRepository } from "@/domain/repositories/zernio-webhook-event.repository";
 import type { IZernioAccountService } from "@/domain/zernio/zernio-account.service";
 import type { IZernioAnalyticsService } from "@/domain/zernio/zernio-analytics.service";
+import type { IPublicationAnalyticsDto } from "@/app/usecases/publication/dto/publication-analytics.dto";
 import { NoopLogger } from "@/infra/logging/noop-logger.service";
 
 class InMemoryPublicationRepository implements IPublicationRepository {
@@ -81,25 +82,13 @@ class StubPublicationAnalyticsCacheRepository
   async upsert(input: {
     publicationId: string;
     zernioPostId: string;
-    analytics: {
-      available: boolean;
-      syncStatus: string;
-      message: string | null;
-      publishedAt: string | null;
-      aggregate: unknown;
-      platforms: unknown[];
-    };
+    analytics: IPublicationAnalyticsDto;
     syncedAt?: Date | null;
   }) {
     return {
       publicationId: input.publicationId,
       zernioPostId: input.zernioPostId,
-      analytics: {
-        ...input.analytics,
-        available: true,
-        syncStatus: input.analytics.syncStatus as "synced",
-        platforms: [],
-      },
+      analytics: input.analytics,
       syncedAt: input.syncedAt ?? new Date(),
       updatedAt: new Date(),
     };

@@ -44,6 +44,10 @@ class InMemoryPublicationRepository implements IPublicationRepository {
     return null;
   }
 
+  async findAnalyticsEligibleByZernioAccountId() {
+    return [];
+  }
+
   async findAllByUserId(userId: string) {
     return this.publications.filter(
       (item) => item.toObject().userId === userId,

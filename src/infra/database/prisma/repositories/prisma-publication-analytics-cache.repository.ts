@@ -36,8 +36,8 @@ export class PrismaPublicationAnalyticsCacheRepository
         publishedAt: input.analytics.publishedAt
           ? new Date(input.analytics.publishedAt)
           : null,
-        aggregate: input.analytics.aggregate as Prisma.InputJsonValue,
-        platforms: input.analytics.platforms as Prisma.InputJsonValue,
+        aggregate: input.analytics.aggregate as unknown as Prisma.InputJsonValue,
+        platforms: input.analytics.platforms as unknown as Prisma.InputJsonValue,
         syncedAt: input.syncedAt ?? new Date(),
       },
       update: {
@@ -47,8 +47,8 @@ export class PrismaPublicationAnalyticsCacheRepository
         publishedAt: input.analytics.publishedAt
           ? new Date(input.analytics.publishedAt)
           : null,
-        aggregate: input.analytics.aggregate as Prisma.InputJsonValue,
-        platforms: input.analytics.platforms as Prisma.InputJsonValue,
+        aggregate: input.analytics.aggregate as unknown as Prisma.InputJsonValue,
+        platforms: input.analytics.platforms as unknown as Prisma.InputJsonValue,
         syncedAt: input.syncedAt ?? new Date(),
       },
     });

@@ -14,7 +14,7 @@ export interface IPublicationRepository {
   findByZernioPostId(zernioPostId: string): Promise<Publication | null>;
   findAnalyticsEligibleByZernioAccountId(
     zernioAccountId: string,
-    limit = 25,
+    limit?: number,
   ): Promise<Publication[]>;
   findAllByUserId(userId: string): Promise<Publication[]>;
   findAllByUserIdWithFilters(

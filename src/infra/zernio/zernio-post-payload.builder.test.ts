@@ -127,11 +127,13 @@ describe("buildZernioPostPayload", () => {
       {
         platform: SocialPlatformEnum.INSTAGRAM,
         accountId: "zernio-ig-1",
+        customContent: undefined,
         platformSpecificData: { shareToFeed: true },
       },
       {
         platform: SocialPlatformEnum.LINKEDIN,
         accountId: "zernio-li-1",
+        customContent: undefined,
         platformSpecificData: undefined,
       },
     ]);

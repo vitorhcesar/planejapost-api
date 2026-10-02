@@ -27,6 +27,10 @@ class InMemoryPublicationRepository implements IPublicationRepository {
     return this.findById(id);
   }
 
+  async findAnalyticsEligibleByZernioAccountId() {
+    return [];
+  }
+
   async findAllByUserId() {
     return this.publication ? [this.publication] : [];
   }
