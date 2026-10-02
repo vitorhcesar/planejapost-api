@@ -6,10 +6,10 @@ import {
 import { SocialPlatformEnum } from "@/domain/enums/social-platform.enum";
 
 export const createSocialConnectSessionBodySchema = z.object({
-  slotId: z.string().min(1),
   platform: z.nativeEnum(SocialPlatformEnum),
   workspaceId: z.string().min(1).optional(),
   loginMethod: z.string().min(1).optional(),
+  socialAccountId: z.string().min(1).optional(),
 });
 
 export const listSocialAccountsQuerySchema = z.object({

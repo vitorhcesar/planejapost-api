@@ -23,7 +23,6 @@ model User {
   accounts                 Account[]
   workspaces               Workspace[]
   socialConnectedAccounts  SocialConnectedAccount[]
-  accountSlots             AccountSlot[]
   publications             Publication[]
   socialConnectSessions    SocialConnectSession[]
   publicationQueue         UserZernioQueue?
@@ -125,7 +124,6 @@ model SocialConnectedAccount {
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
   publicationTargets PublicationTarget[]
-  accountSlot       AccountSlot?
 
   @@unique([userId, zernioAccountId])
   @@index([userId])
@@ -139,10 +137,11 @@ model SocialConnectSession {
   id              String    @id @default(cuid())
   userId          String
   user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  workspaceId     String
-  workspace       Workspace @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
-  accountSlotId   String
-  platform        String
+  workspaceId              String
+  workspace                Workspace @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  reconnectSocialAccountId String?
+  socialConnectedAccountId String?
+  platform                 String
   zernioProfileId String
   mode            String   @default("standard")
   state           String   @unique
@@ -156,21 +155,6 @@ model SocialConnectSession {
   @@index([userId])
   @@index([expiresAt])
   @@map("social_connect_session")
-}
-
-model AccountSlot {
-  id                        String                  @id @default(cuid())
-  userId                    String
-  user                      User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  socialConnectedAccountId  String?                 @unique
-  socialConnectedAccount    SocialConnectedAccount? @relation(fields: [socialConnectedAccountId], references: [id], onDelete: SetNull)
-  status                    String                  @default("active")
-  createdAt                 DateTime                @default(now())
-  updatedAt                 DateTime                @updatedAt
-
-  @@index([userId])
-  @@index([status])
-  @@map("account_slot")
 }
 
 model Publication {

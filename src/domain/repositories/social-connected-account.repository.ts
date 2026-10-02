@@ -10,7 +10,7 @@ export interface ISocialConnectedAccountRepository {
   ): Promise<SocialConnectedAccount | null>;
   findByUserId(
     userId: string,
-    filters?: { workspaceId?: string },
+    filters?: { workspaceId?: string; status?: SocialAccountStatusEnum },
   ): Promise<SocialConnectedAccount[]>;
   findConnectedByWorkspaceId(workspaceId: string): Promise<SocialConnectedAccount[]>;
   findByUserIdAndZernioAccountId(
@@ -22,6 +22,7 @@ export interface ISocialConnectedAccountRepository {
   ): Promise<SocialConnectedAccount | null>;
   findConnectedByUserId(userId: string): Promise<SocialConnectedAccount[]>;
   save(account: SocialConnectedAccount): Promise<SocialConnectedAccount>;
+  deleteByIdAndUserId(id: string, userId: string): Promise<void>;
   countAll(): Promise<number>;
   countByStatus(status: SocialAccountStatusEnum): Promise<number>;
 }

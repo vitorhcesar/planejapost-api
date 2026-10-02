@@ -2,7 +2,6 @@ import { PublicationStatusEnum } from "@/domain/enums/publication.enum";
 import { SocialConnectedAccount } from "@/domain/entities/social-connected-account.entity";
 import type { Publication } from "@/domain/entities/publication.entity";
 import { isSocialPlatform } from "@/domain/enums/social-platform.enum";
-import type { IAccountSlotRepository } from "@/domain/repositories/account-slot.repository";
 import type { IPublicationRepository } from "@/domain/repositories/publication.repository";
 import type { ISocialConnectSessionRepository } from "@/domain/repositories/social-connect-session.repository";
 import type { ISocialConnectedAccountRepository } from "@/domain/repositories/social-connected-account.repository";
@@ -35,7 +34,6 @@ export class HandleZernioWebhookUseCase {
     private readonly zernioWebhookEventRepository: IZernioWebhookEventRepository,
     private readonly socialConnectedAccountRepository: ISocialConnectedAccountRepository,
     private readonly socialConnectSessionRepository: ISocialConnectSessionRepository,
-    private readonly accountSlotRepository: IAccountSlotRepository,
     private readonly publicationRepository: IPublicationRepository,
     private readonly zernioAccountService: IZernioAccountService,
     private readonly logger: ILogger,
@@ -164,44 +162,22 @@ export class HandleZernioWebhookUseCase {
       return;
     }
 
-    const slot = await this.accountSlotRepository.findByIdAndUserId(
-      pendingSession.accountSlotId,
-      pendingSession.userId,
-    );
-
-    if (!slot) {
-      this.logger.warn(ZERNIO_WEBHOOK_SCOPE, "account.connected — slot não encontrado", {
-        sessionId: pendingSession.id,
-        accountSlotId: pendingSession.accountSlotId,
-      });
-      return;
-    }
-
-    if (slot.socialConnectedAccountId) {
-      this.logger.warn(ZERNIO_WEBHOOK_SCOPE, "account.connected — slot já ocupado", {
-        sessionId: pendingSession.id,
-        accountSlotId: slot.id,
-      });
-      return;
-    }
-
     const existingForUser =
       await this.socialConnectedAccountRepository.findByUserIdAndZernioAccountId(
         pendingSession.userId,
         accountId,
       );
 
-    if (existingForUser) {
-      const existingAccountSlot =
-        await this.accountSlotRepository.findBySocialConnectedAccountId(existingForUser.id);
-
-      if (existingAccountSlot && existingAccountSlot.id !== slot.id) {
-        this.logger.warn(ZERNIO_WEBHOOK_SCOPE, "account.connected — conta já vinculada a outro slot", {
-          zernioAccountId: accountId,
-          userId: pendingSession.userId,
-        });
-        return;
-      }
+    if (
+      existingForUser &&
+      existingForUser.isConnected() &&
+      pendingSession.reconnectSocialAccountId !== existingForUser.id
+    ) {
+      this.logger.warn(ZERNIO_WEBHOOK_SCOPE, "account.connected — conta já conectada", {
+        zernioAccountId: accountId,
+        userId: pendingSession.userId,
+      });
+      return;
     }
 
     const health = await this.zernioAccountService.getAccountHealth(accountId);
@@ -209,7 +185,6 @@ export class HandleZernioWebhookUseCase {
 
     if (socialAccount) {
       socialAccount.reconnect({
-        accountSlotId: slot.id,
         workspaceId: pendingSession.workspaceId,
         username: username || socialAccount.username,
         displayName: displayName ?? socialAccount.displayName,
@@ -222,7 +197,6 @@ export class HandleZernioWebhookUseCase {
       socialAccount = SocialConnectedAccount.create({
         userId: pendingSession.userId,
         workspaceId: pendingSession.workspaceId,
-        accountSlotId: slot.id,
         platform: platformValue,
         zernioAccountId: accountId,
         zernioProfileId: profileId,
@@ -236,9 +210,8 @@ export class HandleZernioWebhookUseCase {
     }
 
     const savedAccount = await this.socialConnectedAccountRepository.save(socialAccount);
-    await this.accountSlotRepository.assignAccount(slot.id, savedAccount.id);
 
-    pendingSession.markAsCompleted();
+    pendingSession.markAsCompleted(savedAccount.id);
     await this.socialConnectSessionRepository.save(pendingSession);
 
     this.logger.info(ZERNIO_WEBHOOK_SCOPE, "Conta conectada via webhook", {
@@ -273,7 +246,6 @@ export class HandleZernioWebhookUseCase {
 
     account.markAsDisconnected();
     await this.socialConnectedAccountRepository.save(account);
-    await this.accountSlotRepository.releaseAccount(account.id);
 
     this.logger.info(ZERNIO_WEBHOOK_SCOPE, "Conta desconectada", {
       zernioAccountId: accountId,

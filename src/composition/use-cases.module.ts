@@ -1,4 +1,3 @@
-import { ListAccountSlotsUseCase } from "@/app/usecases/account-slot/account-slot.usecases";
 import {
   AdminCancelInvoiceUseCase,
   AdminDeleteInvoiceUseCase,
@@ -27,6 +26,7 @@ import {
 } from "@/app/usecases/admin/admin-user-detail.usecases";
 import { GetAdminUserDetailsUseCase } from "@/app/usecases/admin/get-admin-user-details.usecase";
 import { ListAdminUsersUseCase } from "@/app/usecases/admin/list-admin-users.usecase";
+import { SendAdminOtpTestEmailUseCase } from "@/app/usecases/admin/send-admin-otp-test-email.usecase";
 import { UpdateAdminUserRoleUseCase } from "@/app/usecases/admin/update-admin-user-role.usecase";
 import { SendEmailVerificationOtpUseCase } from "@/app/usecases/email-verification/send-email-verification-otp.usecase";
 import { VerifyEmailVerificationOtpUseCase } from "@/app/usecases/email-verification/verify-email-verification-otp.usecase";
@@ -54,7 +54,6 @@ import {
   ListSocialConnectedAccountsUseCase,
 } from "@/app/usecases/social/social-connected-account.usecases";
 import { ReceiveStripeWebhookUseCase } from "@/app/usecases/stripe/receive-stripe-webhook.usecase";
-import { ProvisionAccountSlotsUseCase } from "@/app/usecases/subscription/provision-account-slots.usecase";
 import { SubscriptionEmailService } from "@/app/usecases/subscription/subscription-email.service";
 import {
   ExpireSubscriptionForNonPaymentUseCase,
@@ -113,9 +112,6 @@ export interface IUseCases {
     cancel: CancelPublicationUseCase;
     getQueue: GetPublicationQueueUseCase;
     upsertQueue: UpsertPublicationQueueUseCase;
-  };
-  accountSlot: {
-    list: ListAccountSlotsUseCase;
   };
   social: {
     createConnectSession: CreateSocialConnectSessionUseCase;
@@ -188,6 +184,7 @@ export interface IUseCases {
     createPixSmokeTest: CreateOasyfyPixSmokeTestUseCase;
     getPixSmokeTest: GetOasyfyPixSmokeTestUseCase;
     getOasyfyConnectionDiagnostics: GetOasyfyConnectionDiagnosticsUseCase;
+    sendOtpTestEmail: SendAdminOtpTestEmailUseCase;
   };
 }
 
@@ -199,14 +196,9 @@ export function createUseCases(
     infrastructure.emailService,
   );
 
-  const provisionAccountSlots = new ProvisionAccountSlotsUseCase(
-    repositories.accountSlot,
-  );
-
   const processInvoicePayment = new ProcessSubscriptionInvoicePaymentUseCase(
     repositories.subscription,
     repositories.subscriptionPlan,
-    provisionAccountSlots,
     repositories.user,
     subscriptionEmailService,
   );
@@ -218,7 +210,6 @@ export function createUseCases(
   const expireForNonPayment = new ExpireSubscriptionForNonPaymentUseCase(
     repositories.subscription,
     repositories.socialConnectedAccount,
-    provisionAccountSlots,
     infrastructure.zernioClient,
     repositories.user,
     subscriptionEmailService,
@@ -309,20 +300,12 @@ export function createUseCases(
         infrastructure.zernioClient,
       ),
     },
-    accountSlot: {
-      list: new ListAccountSlotsUseCase(
-        repositories.accountSlot,
-        repositories.subscription,
-        provisionAccountSlots,
-      ),
-    },
     social: {
       createConnectSession: new CreateSocialConnectSessionUseCase(
         ensureZernioProfile,
         ensureDefaultWorkspace,
         repositories.socialConnectSession,
         repositories.socialConnectedAccount,
-        repositories.accountSlot,
         repositories.workspace,
         infrastructure.zernioClient,
         infrastructure.frontendOrigin,
@@ -331,19 +314,16 @@ export function createUseCases(
       completeConnect: new CompleteSocialConnectUseCase(
         repositories.socialConnectSession,
         repositories.socialConnectedAccount,
-        repositories.accountSlot,
         repositories.workspace,
         infrastructure.zernioClient,
         infrastructure.zernioClient,
       ),
       listConnectedAccounts: new ListSocialConnectedAccountsUseCase(
         repositories.socialConnectedAccount,
-        repositories.accountSlot,
         repositories.workspace,
       ),
       disconnectAccount: new DisconnectSocialAccountUseCase(
         repositories.socialConnectedAccount,
-        repositories.accountSlot,
         infrastructure.zernioClient,
       ),
       listSelectionOptions: new ListSocialConnectSelectionOptionsUseCase(
@@ -371,7 +351,6 @@ export function createUseCases(
         repositories.zernioWebhookEvent,
         repositories.socialConnectedAccount,
         repositories.socialConnectSession,
-        repositories.accountSlot,
         repositories.publication,
         infrastructure.zernioClient,
         infrastructure.logger,
@@ -492,7 +471,6 @@ export function createUseCases(
         repositories.user,
         repositories.subscriptionPlan,
         repositories.subscription,
-        provisionAccountSlots,
       ),
       markUserInvoicePaid: new AdminMarkUserInvoicePaidUseCase(
         repositories.subscription,
@@ -534,6 +512,7 @@ export function createUseCases(
       ),
       getPixSmokeTest: new GetOasyfyPixSmokeTestUseCase(repositories.oasyfyPixTest),
       getOasyfyConnectionDiagnostics: new GetOasyfyConnectionDiagnosticsUseCase(),
+      sendOtpTestEmail: new SendAdminOtpTestEmailUseCase(infrastructure.emailService),
     },
   };
 }

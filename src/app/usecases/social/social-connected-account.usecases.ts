@@ -8,7 +8,7 @@ import { EnsureZernioProfileUseCase } from "@/app/usecases/zernio/ensure-zernio-
 import { SocialConnectedAccount } from "@/domain/entities/social-connected-account.entity";
 import { SocialConnectSession } from "@/domain/entities/social-connect-session.entity";
 import type { AssertSubscriptionForConnectUseCase } from "@/app/usecases/subscription/subscription.usecases";
-import { AccountSlotStatusEnum } from "@/domain/enums/account-slot.enum";
+import { SocialAccountStatusEnum } from "@/domain/enums/social-account.enum";
 import { ConnectModeEnum } from "@/domain/enums/connect-mode.enum";
 import {
   HEADLESS_SOCIAL_PLATFORMS,
@@ -16,7 +16,6 @@ import {
   isSocialPlatform,
 } from "@/domain/enums/social-platform.enum";
 import { AppError } from "@/domain/errors/app.error";
-import type { IAccountSlotRepository } from "@/domain/repositories/account-slot.repository";
 import type { ISocialConnectSessionRepository } from "@/domain/repositories/social-connect-session.repository";
 import type { ISocialConnectedAccountRepository } from "@/domain/repositories/social-connected-account.repository";
 import type { IWorkspaceRepository } from "@/domain/repositories/workspace.repository";
@@ -31,7 +30,6 @@ export class CreateSocialConnectSessionUseCase {
     private readonly ensureDefaultWorkspaceUseCase: EnsureDefaultWorkspaceUseCase,
     private readonly socialConnectSessionRepository: ISocialConnectSessionRepository,
     private readonly socialConnectedAccountRepository: ISocialConnectedAccountRepository,
-    private readonly accountSlotRepository: IAccountSlotRepository,
     private readonly workspaceRepository: IWorkspaceRepository,
     private readonly zernioConnectService: IZernioConnectService,
     private readonly frontendOrigin: string,
@@ -40,40 +38,35 @@ export class CreateSocialConnectSessionUseCase {
 
   async execute(input: {
     userId: string;
-    slotId: string;
     platform: string;
     workspaceId?: string;
     loginMethod?: string;
+    socialAccountId?: string;
   }): Promise<ISocialConnectSessionDto> {
     if (!isSocialPlatform(input.platform)) {
       throw new AppError("Plataforma não suportada", 400, "unsupported_platform");
     }
 
-    await this.assertSubscriptionForConnectUseCase.execute(input.userId);
+    if (input.socialAccountId) {
+      const reconnectAccount =
+        await this.socialConnectedAccountRepository.findByIdAndUserId(
+          input.socialAccountId,
+          input.userId,
+        );
 
-    const slot = await this.accountSlotRepository.findByIdAndUserId(
-      input.slotId,
-      input.userId,
-    );
+      if (!reconnectAccount) {
+        throw new AppError(
+          "Conta social não encontrada",
+          404,
+          "social_account_not_found",
+        );
+      }
 
-    if (!slot) {
-      throw new AppError("Conexão não encontrada", 404, "account_slot_not_found");
-    }
-
-    if (slot.status === AccountSlotStatusEnum.EXPIRED) {
-      throw new AppError(
-        "Esta conexão não está disponível no seu plano",
-        400,
-        "account_slot_expired",
-      );
-    }
-
-    if (slot.socialConnectedAccountId) {
-      throw new AppError(
-        "Este slot já possui uma conta conectada",
-        400,
-        "account_slot_occupied",
-      );
+      await this.assertSubscriptionForConnectUseCase.execute(input.userId, {
+        skipConnectionsLimit: true,
+      });
+    } else {
+      await this.assertSubscriptionForConnectUseCase.execute(input.userId);
     }
 
     const zernioProfileId = await this.ensureZernioProfileUseCase.execute(
@@ -100,7 +93,7 @@ export class CreateSocialConnectSessionUseCase {
     const session = SocialConnectSession.create({
       userId: input.userId,
       workspaceId: workspace.id,
-      accountSlotId: slot.id,
+      reconnectSocialAccountId: input.socialAccountId ?? null,
       platform: input.platform,
       zernioProfileId,
       mode,
@@ -135,7 +128,6 @@ export class CompleteSocialConnectUseCase {
   constructor(
     private readonly socialConnectSessionRepository: ISocialConnectSessionRepository,
     private readonly socialConnectedAccountRepository: ISocialConnectedAccountRepository,
-    private readonly accountSlotRepository: IAccountSlotRepository,
     private readonly workspaceRepository: IWorkspaceRepository,
     private readonly zernioAccountService: IZernioAccountService,
     private readonly zernioConnectService: IZernioConnectService,
@@ -164,17 +156,8 @@ export class CompleteSocialConnectUseCase {
       throw new AppError("Sessão de conexão expirada", 400, "connect_session_expired");
     }
 
-    const slot = await this.accountSlotRepository.findByIdAndUserId(
-      session.accountSlotId,
-      input.userId,
-    );
-
-    if (!slot) {
-      throw new AppError("Slot não encontrado", 404, "account_slot_not_found");
-    }
-
     if (session.isCompleted()) {
-      if (!slot.socialConnectedAccountId) {
+      if (!session.socialConnectedAccountId) {
         throw new AppError(
           "Sessão de conexão já concluída",
           400,
@@ -184,7 +167,7 @@ export class CompleteSocialConnectUseCase {
 
       const existingConnectedAccount =
         await this.socialConnectedAccountRepository.findByIdAndUserId(
-          slot.socialConnectedAccountId,
+          session.socialConnectedAccountId,
           input.userId,
         );
 
@@ -198,16 +181,7 @@ export class CompleteSocialConnectUseCase {
 
       return mapSocialConnectedAccountToDto(
         existingConnectedAccount,
-        this.accountSlotRepository,
         this.workspaceRepository,
-      );
-    }
-
-    if (slot.socialConnectedAccountId) {
-      throw new AppError(
-        "Este slot já possui uma conta conectada",
-        400,
-        "account_slot_occupied",
       );
     }
 
@@ -260,19 +234,13 @@ export class CompleteSocialConnectUseCase {
         zernioAccountId,
       );
 
-    const existingAccountSlot = existingAccount
-      ? await this.accountSlotRepository.findBySocialConnectedAccountId(
-          existingAccount.id,
-        )
-      : null;
-
     if (
       existingAccount &&
-      existingAccountSlot &&
-      existingAccountSlot.id !== slot.id
+      existingAccount.isConnected() &&
+      session.reconnectSocialAccountId !== existingAccount.id
     ) {
       throw new AppError(
-        "Esta conta já está conectada em outro slot",
+        "Esta conta já está conectada",
         400,
         "social_account_already_connected",
       );
@@ -282,7 +250,6 @@ export class CompleteSocialConnectUseCase {
 
     if (account) {
       account.reconnect({
-        accountSlotId: slot.id,
         workspaceId: session.workspaceId,
         username: zernioAccount.username || username,
         displayName: zernioAccount.displayName,
@@ -295,7 +262,6 @@ export class CompleteSocialConnectUseCase {
       account = SocialConnectedAccount.create({
         userId: input.userId,
         workspaceId: session.workspaceId,
-        accountSlotId: slot.id,
         platform: session.platform,
         zernioAccountId,
         zernioProfileId: session.zernioProfileId,
@@ -309,14 +275,12 @@ export class CompleteSocialConnectUseCase {
     }
 
     const savedAccount = await this.socialConnectedAccountRepository.save(account);
-    await this.accountSlotRepository.assignAccount(slot.id, savedAccount.id);
 
-    session.markAsCompleted();
+    session.markAsCompleted(savedAccount.id);
     await this.socialConnectSessionRepository.save(session);
 
     return mapSocialConnectedAccountToDto(
       savedAccount,
-      this.accountSlotRepository,
       this.workspaceRepository,
     );
   }
@@ -442,7 +406,6 @@ export class ListSocialConnectSelectionOptionsUseCase {
 export class ListSocialConnectedAccountsUseCase {
   constructor(
     private readonly socialConnectedAccountRepository: ISocialConnectedAccountRepository,
-    private readonly accountSlotRepository: IAccountSlotRepository,
     private readonly workspaceRepository: IWorkspaceRepository,
   ) {}
 
@@ -457,11 +420,7 @@ export class ListSocialConnectedAccountsUseCase {
 
     return Promise.all(
       accounts.map((account) =>
-        mapSocialConnectedAccountToDto(
-          account,
-          this.accountSlotRepository,
-          this.workspaceRepository,
-        ),
+        mapSocialConnectedAccountToDto(account, this.workspaceRepository),
       ),
     );
   }
@@ -470,7 +429,6 @@ export class ListSocialConnectedAccountsUseCase {
 export class DisconnectSocialAccountUseCase {
   constructor(
     private readonly socialConnectedAccountRepository: ISocialConnectedAccountRepository,
-    private readonly accountSlotRepository: IAccountSlotRepository,
     private readonly zernioAccountService: IZernioAccountService,
   ) {}
 
@@ -489,9 +447,23 @@ export class DisconnectSocialAccountUseCase {
       );
     }
 
-    await this.zernioAccountService.disconnectAccount(account.zernioAccountId);
-    account.markAsDisconnected();
-    await this.socialConnectedAccountRepository.save(account);
-    await this.accountSlotRepository.releaseAccount(accountId);
+    if (account.status === SocialAccountStatusEnum.CONNECTED) {
+      try {
+        await this.zernioAccountService.disconnectAccount(account.zernioAccountId);
+      } catch (error) {
+        if (!isZernioAccountNotFoundError(error)) {
+          throw error;
+        }
+      }
+    }
+
+    await this.socialConnectedAccountRepository.deleteByIdAndUserId(
+      accountId,
+      userId,
+    );
   }
+}
+
+function isZernioAccountNotFoundError(error: unknown): boolean {
+  return error instanceof AppError && error.statusCode === 404;
 }

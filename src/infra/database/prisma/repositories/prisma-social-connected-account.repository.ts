@@ -1,13 +1,8 @@
 import type { SocialConnectedAccount } from "@/domain/entities/social-connected-account.entity";
 import type { SocialAccountStatusEnum } from "@/domain/enums/social-account.enum";
 import type { ISocialConnectedAccountRepository } from "@/domain/repositories/social-connected-account.repository";
-import type { SocialConnectedAccount as PrismaSocialConnectedAccount } from "../../../../../generated/prisma";
 import { SocialConnectedAccountMapper } from "@/infra/database/prisma/mappers/social-connected-account.mapper";
 import { BasePrismaRepository } from "@/infra/database/prisma/repositories/base-prisma.repository";
-
-type TSocialAccountRow = PrismaSocialConnectedAccount & {
-  accountSlot?: { id: string } | null;
-};
 
 export class PrismaSocialConnectedAccountRepository
   extends BasePrismaRepository
@@ -16,10 +11,9 @@ export class PrismaSocialConnectedAccountRepository
   async findById(id: string): Promise<SocialConnectedAccount | null> {
     const row = await this.getPrismaClient().socialConnectedAccount.findUnique({
       where: { id },
-      include: { accountSlot: true },
     });
 
-    return row ? this.mapRow(row) : null;
+    return row ? SocialConnectedAccountMapper.toDomain(row) : null;
   }
 
   async findByIdAndUserId(
@@ -28,26 +22,25 @@ export class PrismaSocialConnectedAccountRepository
   ): Promise<SocialConnectedAccount | null> {
     const row = await this.getPrismaClient().socialConnectedAccount.findFirst({
       where: { id, userId },
-      include: { accountSlot: true },
     });
 
-    return row ? this.mapRow(row) : null;
+    return row ? SocialConnectedAccountMapper.toDomain(row) : null;
   }
 
   async findByUserId(
     userId: string,
-    filters: { workspaceId?: string } = {},
+    filters: { workspaceId?: string; status?: SocialAccountStatusEnum } = {},
   ): Promise<SocialConnectedAccount[]> {
     const rows = await this.getPrismaClient().socialConnectedAccount.findMany({
       where: {
         userId,
         ...(filters.workspaceId ? { workspaceId: filters.workspaceId } : {}),
+        ...(filters.status ? { status: filters.status } : {}),
       },
-      include: { accountSlot: true },
       orderBy: { createdAt: "desc" },
     });
 
-    return rows.map((row) => this.mapRow(row));
+    return rows.map((row) => SocialConnectedAccountMapper.toDomain(row));
   }
 
   async findConnectedByWorkspaceId(
@@ -58,11 +51,10 @@ export class PrismaSocialConnectedAccountRepository
         workspaceId,
         status: "connected",
       },
-      include: { accountSlot: true },
       orderBy: { createdAt: "desc" },
     });
 
-    return rows.map((row) => this.mapRow(row));
+    return rows.map((row) => SocialConnectedAccountMapper.toDomain(row));
   }
 
   async findByUserIdAndZernioAccountId(
@@ -71,10 +63,9 @@ export class PrismaSocialConnectedAccountRepository
   ): Promise<SocialConnectedAccount | null> {
     const row = await this.getPrismaClient().socialConnectedAccount.findFirst({
       where: { userId, zernioAccountId },
-      include: { accountSlot: true },
     });
 
-    return row ? this.mapRow(row) : null;
+    return row ? SocialConnectedAccountMapper.toDomain(row) : null;
   }
 
   async findByZernioAccountId(
@@ -82,10 +73,9 @@ export class PrismaSocialConnectedAccountRepository
   ): Promise<SocialConnectedAccount | null> {
     const row = await this.getPrismaClient().socialConnectedAccount.findFirst({
       where: { zernioAccountId },
-      include: { accountSlot: true },
     });
 
-    return row ? this.mapRow(row) : null;
+    return row ? SocialConnectedAccountMapper.toDomain(row) : null;
   }
 
   async findConnectedByUserId(userId: string): Promise<SocialConnectedAccount[]> {
@@ -94,11 +84,10 @@ export class PrismaSocialConnectedAccountRepository
         userId,
         status: "connected",
       },
-      include: { accountSlot: true },
       orderBy: { createdAt: "desc" },
     });
 
-    return rows.map((row) => this.mapRow(row));
+    return rows.map((row) => SocialConnectedAccountMapper.toDomain(row));
   }
 
   async save(account: SocialConnectedAccount): Promise<SocialConnectedAccount> {
@@ -106,18 +95,22 @@ export class PrismaSocialConnectedAccountRepository
       const row = await this.getPrismaClient().socialConnectedAccount.update({
         where: { id: account.id },
         data: SocialConnectedAccountMapper.toPrismaUpdate(account),
-        include: { accountSlot: true },
       });
 
-      return this.mapRow(row);
+      return SocialConnectedAccountMapper.toDomain(row);
     }
 
     const row = await this.getPrismaClient().socialConnectedAccount.create({
       data: SocialConnectedAccountMapper.toPrismaCreate(account),
-      include: { accountSlot: true },
     });
 
-    return this.mapRow(row);
+    return SocialConnectedAccountMapper.toDomain(row);
+  }
+
+  async deleteByIdAndUserId(id: string, userId: string): Promise<void> {
+    await this.getPrismaClient().socialConnectedAccount.deleteMany({
+      where: { id, userId },
+    });
   }
 
   async countAll(): Promise<number> {
@@ -128,15 +121,5 @@ export class PrismaSocialConnectedAccountRepository
     return this.getPrismaClient().socialConnectedAccount.count({
       where: { status },
     });
-  }
-
-  private mapRow(row: TSocialAccountRow): SocialConnectedAccount {
-    const account = SocialConnectedAccountMapper.toDomain(row);
-
-    if (row.accountSlot?.id) {
-      account.assignSlot(row.accountSlot.id);
-    }
-
-    return account;
   }
 }

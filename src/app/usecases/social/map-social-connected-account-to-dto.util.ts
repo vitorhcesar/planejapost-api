@@ -1,21 +1,12 @@
 import type { ISocialConnectedAccountDto } from "@/app/usecases/social/dto/social.dto";
 import type { SocialConnectedAccount } from "@/domain/entities/social-connected-account.entity";
-import type { IAccountSlotRepository } from "@/domain/repositories/account-slot.repository";
 import type { IWorkspaceRepository } from "@/domain/repositories/workspace.repository";
-import { AccountSlotStatusEnum } from "@/domain/enums/account-slot.enum";
 
 export async function mapSocialConnectedAccountToDto(
   account: SocialConnectedAccount,
-  accountSlotRepository: IAccountSlotRepository,
   workspaceRepository: IWorkspaceRepository,
 ): Promise<ISocialConnectedAccountDto> {
-  const [slot, workspace] = await Promise.all([
-    accountSlotRepository.findBySocialConnectedAccountId(account.id),
-    workspaceRepository.findById(account.workspaceId),
-  ]);
-
-  const isExpired =
-    slot !== null && slot.status === AccountSlotStatusEnum.EXPIRED;
+  const workspace = await workspaceRepository.findById(account.workspaceId);
 
   return {
     id: account.id,
@@ -29,8 +20,6 @@ export async function mapSocialConnectedAccountToDto(
     needsReconnect: account.needsReconnect,
     workspaceId: account.workspaceId,
     workspaceName: workspace?.name ?? "",
-    accountSlotId: slot?.id ?? null,
-    isExpired,
     connectedAt: account.connectedAt.toISOString(),
     disconnectedAt: account.disconnectedAt?.toISOString() ?? null,
   };

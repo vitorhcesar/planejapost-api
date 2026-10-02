@@ -33,10 +33,10 @@ export class SocialRoutes extends BaseHttpRoute {
 
       const session = await createConnectSession.execute({
         userId: authUserId!,
-        slotId: parsedBody.data.slotId,
         platform: parsedBody.data.platform,
         workspaceId: parsedBody.data.workspaceId,
         loginMethod: parsedBody.data.loginMethod,
+        socialAccountId: parsedBody.data.socialAccountId,
       });
 
       return this.successResponse("Sessão de conexão criada", session, 201);

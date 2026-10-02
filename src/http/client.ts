@@ -1,4 +1,5 @@
 import { Elysia, type Context } from "elysia";
+import type { ILogger } from "@/domain/services/logger.service";
 import { auth } from "@/infra/auth/client";
 import { createAuthSessionUserMiddleware } from "@/http/middleware/auth-session.middleware";
 import {
@@ -6,6 +7,7 @@ import {
   createRequireAuthenticatedUserMiddleware,
   getAuthContext,
 } from "@/http/middleware/authorization.middleware";
+import { registerGlobalApiErrorHandler } from "@/http/utils/register-global-api-error-handler";
 
 export type { IAuthContext } from "@/http/middleware/auth-session.middleware";
 export { getAuthContext };
@@ -14,12 +16,18 @@ export function createBetterAuthPlugin() {
   return new Elysia({ name: "better-auth" }).mount(auth.handler);
 }
 
-export function createHttpServerClient(): HttpServerClient {
-  const app = new Elysia()
-    .use(createAuthSessionUserMiddleware())
-    .use(createBetterAuthPlugin()) as unknown as Elysia;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type TElysiaApp = Elysia<any, any, any, any, any, any, any>;
 
-  return new HttpServerClient(app);
+export function createHttpServerClient(logger: ILogger): HttpServerClient {
+  const app = registerGlobalApiErrorHandler(
+    new Elysia()
+      .use(createAuthSessionUserMiddleware())
+      .use(createBetterAuthPlugin()) as TElysiaApp,
+    logger,
+  );
+
+  return new HttpServerClient(app as unknown as Elysia);
 }
 
 export class HttpServerClient {

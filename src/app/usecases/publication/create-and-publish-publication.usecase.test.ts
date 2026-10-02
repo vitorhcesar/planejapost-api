@@ -129,6 +129,12 @@ class InMemorySocialAccountRepository implements ISocialConnectedAccountReposito
     return saved;
   }
 
+  async deleteByIdAndUserId(id: string, userId: string) {
+    this.accounts = this.accounts.filter(
+      (account) => account.id !== id || account.userId !== userId,
+    );
+  }
+
   async countAll() {
     return this.accounts.length;
   }
@@ -204,7 +210,6 @@ function createConnectedAccount(
     id: overrides.id ?? "social-1",
     userId,
     workspaceId: DEFAULT_WORKSPACE.id,
-    accountSlotId: "slot-1",
     platform: overrides.platform ?? SocialPlatformEnum.INSTAGRAM,
     zernioAccountId: overrides.zernioAccountId ?? "zernio-acc-1",
     zernioProfileId: "zernio-profile-1",

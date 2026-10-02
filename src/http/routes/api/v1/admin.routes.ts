@@ -6,6 +6,7 @@ import {
   SubscriptionInvoiceTypeEnum,
   SubscriptionStatusEnum,
 } from "@/domain/enums/subscription.enum";
+import { sendAdminOtpTestEmailBodySchema } from "@/http/validation/schemas/admin-email.schema";
 import { adminBillingMetricsQuerySchema } from "@/http/validation/schemas/admin-billing-metrics.schema";
 import {
   adminCreateManualInvoiceBodySchema,
@@ -69,6 +70,7 @@ export class AdminRoutes extends BaseHttpRoute {
       createPixSmokeTest,
       getPixSmokeTest,
       getOasyfyConnectionDiagnostics,
+      sendOtpTestEmail,
     } = this.container.useCases.admin;
 
     route.get("/admin/dashboard/metrics", async () => {
@@ -115,6 +117,12 @@ export class AdminRoutes extends BaseHttpRoute {
       const { id } = context.params;
       const result = await getPixSmokeTest.execute(id);
       return this.successResponse("OK", result, 200);
+    });
+
+    route.post("/admin/email/otp-test", async (context) => {
+      const body = sendAdminOtpTestEmailBodySchema.parse(context.body);
+      const result = await sendOtpTestEmail.execute(body);
+      return this.successResponse("E-mail de teste enviado", result, 201);
     });
 
     route.get("/admin/subscriptions", async (context) => {

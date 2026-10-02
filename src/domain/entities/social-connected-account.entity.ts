@@ -5,7 +5,6 @@ export interface ISocialConnectedAccountProps {
   id: string;
   userId: string;
   workspaceId: string;
-  accountSlotId: string | null;
   platform: SocialPlatformEnum;
   zernioAccountId: string;
   zernioProfileId: string;
@@ -25,7 +24,6 @@ export interface ISocialConnectedAccountProps {
 export interface ISocialConnectedAccountCreateProps {
   userId: string;
   workspaceId: string;
-  accountSlotId: string | null;
   platform: SocialPlatformEnum;
   zernioAccountId: string;
   zernioProfileId: string;
@@ -51,7 +49,6 @@ export class SocialConnectedAccount {
       id: "",
       userId: props.userId,
       workspaceId: props.workspaceId,
-      accountSlotId: props.accountSlotId,
       platform: props.platform,
       zernioAccountId: props.zernioAccountId,
       zernioProfileId: props.zernioProfileId,
@@ -83,10 +80,6 @@ export class SocialConnectedAccount {
 
   get workspaceId(): string {
     return this.props.workspaceId;
-  }
-
-  get accountSlotId(): string | null {
-    return this.props.accountSlotId;
   }
 
   get platform(): SocialPlatformEnum {
@@ -144,7 +137,6 @@ export class SocialConnectedAccount {
   markAsDisconnected(): void {
     this.props.status = SocialAccountStatusEnum.DISCONNECTED;
     this.props.disconnectedAt = new Date();
-    this.props.accountSlotId = null;
     this.props.updatedAt = new Date();
   }
 
@@ -189,7 +181,6 @@ export class SocialConnectedAccount {
   }
 
   reconnect(input: {
-    accountSlotId: string;
     workspaceId?: string;
     username: string;
     displayName?: string | null;
@@ -198,8 +189,6 @@ export class SocialConnectedAccount {
     needsReconnect?: boolean;
     permissions?: Record<string, unknown> | null;
   }): void {
-    this.props.accountSlotId = input.accountSlotId;
-
     if (input.workspaceId !== undefined) {
       this.props.workspaceId = input.workspaceId;
     }
@@ -213,11 +202,6 @@ export class SocialConnectedAccount {
     this.props.permissions = input.permissions ?? this.props.permissions;
     this.props.connectedAt = new Date();
     this.props.disconnectedAt = null;
-    this.props.updatedAt = new Date();
-  }
-
-  assignSlot(accountSlotId: string): void {
-    this.props.accountSlotId = accountSlotId;
     this.props.updatedAt = new Date();
   }
 

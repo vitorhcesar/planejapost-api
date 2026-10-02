@@ -5,7 +5,8 @@ export interface ISocialConnectSessionProps {
   id: string;
   userId: string;
   workspaceId: string;
-  accountSlotId: string;
+  reconnectSocialAccountId: string | null;
+  socialConnectedAccountId: string | null;
   platform: SocialPlatformEnum;
   zernioProfileId: string;
   mode: ConnectModeEnum;
@@ -21,7 +22,7 @@ export interface ISocialConnectSessionProps {
 export interface ISocialConnectSessionCreateProps {
   userId: string;
   workspaceId: string;
-  accountSlotId: string;
+  reconnectSocialAccountId?: string | null;
   platform: SocialPlatformEnum;
   zernioProfileId: string;
   mode: ConnectModeEnum;
@@ -41,7 +42,8 @@ export class SocialConnectSession {
       id: "",
       userId: props.userId,
       workspaceId: props.workspaceId,
-      accountSlotId: props.accountSlotId,
+      reconnectSocialAccountId: props.reconnectSocialAccountId ?? null,
+      socialConnectedAccountId: null,
       platform: props.platform,
       zernioProfileId: props.zernioProfileId,
       mode: props.mode,
@@ -71,8 +73,12 @@ export class SocialConnectSession {
     return this.props.workspaceId;
   }
 
-  get accountSlotId(): string {
-    return this.props.accountSlotId;
+  get reconnectSocialAccountId(): string | null {
+    return this.props.reconnectSocialAccountId;
+  }
+
+  get socialConnectedAccountId(): string | null {
+    return this.props.socialConnectedAccountId;
   }
 
   get platform(): SocialPlatformEnum {
@@ -141,8 +147,9 @@ export class SocialConnectSession {
     }
   }
 
-  markAsCompleted(): void {
+  markAsCompleted(socialConnectedAccountId: string): void {
     this.props.completedAt = new Date();
+    this.props.socialConnectedAccountId = socialConnectedAccountId;
   }
 
   setId(id: string): void {

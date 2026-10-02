@@ -1,5 +1,4 @@
 import type { IAdminAnalyticsRepository } from "@/domain/repositories/admin-analytics.repository";
-import type { IAccountSlotRepository } from "@/domain/repositories/account-slot.repository";
 import type { IBillingSettingsRepository } from "@/domain/repositories/billing-settings.repository";
 import type { IEmailVerificationOtpRepository } from "@/domain/repositories/email-verification-otp.repository";
 import type { IOasyfyPixTestRepository } from "@/domain/repositories/oasyfy-pix-test.repository";
@@ -16,7 +15,6 @@ import type { IUserRepository } from "@/domain/repositories/user.repository";
 import type { IWorkspaceRepository } from "@/domain/repositories/workspace.repository";
 import type { IZernioWebhookEventRepository } from "@/domain/repositories/zernio-webhook-event.repository";
 import { PrismaAdminAnalyticsRepository } from "@/infra/database/prisma/repositories/prisma-admin-analytics.repository";
-import { PrismaAccountSlotRepository } from "@/infra/database/prisma/repositories/prisma-account-slot.repository";
 import { PrismaBillingSettingsRepository } from "@/infra/database/prisma/repositories/prisma-billing-settings.repository";
 import { PrismaEmailVerificationOtpRepository } from "@/infra/database/prisma/repositories/prisma-email-verification-otp.repository";
 import { PrismaOasyfyPixTestRepository } from "@/infra/database/prisma/repositories/prisma-oasyfy-pix-test.repository";
@@ -41,7 +39,6 @@ export interface IRepositories {
   socialConnectedAccount: ISocialConnectedAccountRepository;
   socialConnectSession: ISocialConnectSessionRepository;
   zernioWebhookEvent: IZernioWebhookEventRepository;
-  accountSlot: IAccountSlotRepository;
   emailVerificationOtp: IEmailVerificationOtpRepository;
   workspace: IWorkspaceRepository;
   billingSettings: IBillingSettingsRepository;
@@ -62,7 +59,6 @@ export function createRepositories(): IRepositories {
     socialConnectedAccount: new PrismaSocialConnectedAccountRepository(),
     socialConnectSession: new PrismaSocialConnectSessionRepository(),
     zernioWebhookEvent: new PrismaZernioWebhookEventRepository(),
-    accountSlot: new PrismaAccountSlotRepository(),
     emailVerificationOtp: new PrismaEmailVerificationOtpRepository(),
     workspace: new PrismaWorkspaceRepository(),
     billingSettings: new PrismaBillingSettingsRepository(),

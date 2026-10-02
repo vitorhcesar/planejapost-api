@@ -103,6 +103,12 @@ class InMemorySocialConnectedAccountRepository
     return account;
   }
 
+  async deleteByIdAndUserId(id: string, userId: string) {
+    this.accounts = this.accounts.filter(
+      (account) => account.id !== id || account.userId !== userId,
+    );
+  }
+
   async countAll() {
     return this.accounts.length;
   }
@@ -170,7 +176,6 @@ function createConnectedAccount(userId: string, zernioAccountId: string) {
     id: `account-${zernioAccountId}`,
     userId,
     workspaceId: "workspace-1",
-    accountSlotId: "slot-1",
     platform: SocialPlatformEnum.INSTAGRAM,
     zernioAccountId,
     zernioProfileId: "profile-1",

@@ -5,7 +5,6 @@ import type {
   ISubscriptionMeDto,
   ISubscriptionPlanDto,
 } from "@/app/usecases/subscription/dto/subscription.dto";
-import { ProvisionAccountSlotsUseCase } from "@/app/usecases/subscription/provision-account-slots.usecase";
 import { SubscriptionEmailService } from "@/app/usecases/subscription/subscription-email.service";
 import {
   assertConnectionsLimit,
@@ -554,7 +553,6 @@ export class ProcessSubscriptionInvoicePaymentUseCase {
   constructor(
     private readonly subscriptionRepository: ISubscriptionRepository,
     private readonly subscriptionPlanRepository: ISubscriptionPlanRepository,
-    private readonly provisionAccountSlotsUseCase: ProvisionAccountSlotsUseCase,
     private readonly userRepository: IUserRepository,
     private readonly subscriptionEmailService: SubscriptionEmailService,
   ) {}
@@ -612,11 +610,6 @@ export class ProcessSubscriptionInvoicePaymentUseCase {
     const updated = await this.subscriptionRepository.findById(subscription.id);
 
     if (updated) {
-      await this.provisionAccountSlotsUseCase.execute(
-        updated.userId,
-        updated.plan.connectionsLimit,
-      );
-
       const user = await this.userRepository.findById(updated.userId);
 
       if (user) {
@@ -673,13 +666,18 @@ export class AssertSubscriptionForPublishUseCase {
 export class AssertSubscriptionForConnectUseCase {
   constructor(private readonly subscriptionRepository: ISubscriptionRepository) {}
 
-  async execute(userId: string): Promise<ISubscriptionWithPlan> {
+  async execute(
+    userId: string,
+    options?: { skipConnectionsLimit?: boolean },
+  ): Promise<ISubscriptionWithPlan> {
     const subscription = await this.subscriptionRepository.findByUserId(userId);
     const activeSubscription = assertSubscriptionAllowsAccess(subscription);
 
-    const connectionsUsed =
-      await this.subscriptionRepository.countConnectedAccounts(userId);
-    assertConnectionsLimit(activeSubscription, connectionsUsed);
+    if (!options?.skipConnectionsLimit) {
+      const connectionsUsed =
+        await this.subscriptionRepository.countConnectedAccounts(userId);
+      assertConnectionsLimit(activeSubscription, connectionsUsed);
+    }
 
     return activeSubscription;
   }

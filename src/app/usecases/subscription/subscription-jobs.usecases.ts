@@ -1,4 +1,3 @@
-import { ProvisionAccountSlotsUseCase } from "@/app/usecases/subscription/provision-account-slots.usecase";
 import { ProcessSubscriptionInvoicePaymentUseCase } from "@/app/usecases/subscription/subscription.usecases";
 import { SubscriptionEmailService } from "@/app/usecases/subscription/subscription-email.service";
 import {
@@ -272,7 +271,6 @@ export class ExpireSubscriptionForNonPaymentUseCase {
   constructor(
     private readonly subscriptionRepository: ISubscriptionRepository,
     private readonly socialConnectedAccountRepository: ISocialConnectedAccountRepository,
-    private readonly provisionAccountSlotsUseCase: ProvisionAccountSlotsUseCase,
     private readonly zernioAccountService: IZernioAccountService,
     private readonly userRepository: IUserRepository,
     private readonly emailService: SubscriptionEmailService,
@@ -304,11 +302,11 @@ export class ExpireSubscriptionForNonPaymentUseCase {
         );
       }
 
-      account.markAsDisconnected();
-      await this.socialConnectedAccountRepository.save(account);
+      await this.socialConnectedAccountRepository.deleteByIdAndUserId(
+        account.id,
+        subscription.userId,
+      );
     }
-
-    await this.provisionAccountSlotsUseCase.releaseAll(subscription.userId);
 
     const user = await this.userRepository.findById(subscription.userId);
 

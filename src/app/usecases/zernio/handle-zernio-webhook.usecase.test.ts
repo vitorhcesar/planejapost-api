@@ -12,8 +12,6 @@ import {
 } from "@/domain/enums/publication.enum";
 import { SocialPlatformEnum } from "@/domain/enums/social-platform.enum";
 import { SocialAccountStatusEnum } from "@/domain/enums/social-account.enum";
-import { AccountSlotStatusEnum } from "@/domain/enums/account-slot.enum";
-import type { IAccountSlot, IAccountSlotRepository } from "@/domain/repositories/account-slot.repository";
 import type { IPublicationRepository } from "@/domain/repositories/publication.repository";
 import type { ISocialConnectSessionRepository } from "@/domain/repositories/social-connect-session.repository";
 import type { ISocialConnectedAccountRepository } from "@/domain/repositories/social-connected-account.repository";
@@ -160,57 +158,18 @@ class InMemorySocialConnectedAccountRepository implements ISocialConnectedAccoun
     return account;
   }
 
+  async deleteByIdAndUserId(id: string) {
+    if (this.account?.id === id) {
+      this.account = null;
+    }
+  }
+
   async countAll() {
     return this.account ? 1 : 0;
   }
 
   async countByStatus() {
     return this.account ? 1 : 0;
-  }
-}
-
-class InMemoryAccountSlotRepository implements IAccountSlotRepository {
-  assignedAccountId: string | null = null;
-
-  constructor(
-    private readonly slot: IAccountSlot,
-  ) {}
-
-  async findByIdAndUserId(id: string, userId: string) {
-    if (this.slot.id === id && this.slot.userId === userId) {
-      return this.slot;
-    }
-
-    return null;
-  }
-
-  async findByUserId() {
-    return [];
-  }
-
-  async findBySocialConnectedAccountId() {
-    return null;
-  }
-
-  async createMany() {
-    return [];
-  }
-
-  async assignAccount(slotId: string, accountId: string) {
-    if (this.slot.id === slotId) {
-      this.slot.socialConnectedAccountId = accountId;
-      this.assignedAccountId = accountId;
-    }
-
-    return this.slot;
-  }
-
-  async releaseAccount() {}
-
-  async deactivate() {}
-
-  async findAvailableSlot() {
-    return null;
   }
 }
 
@@ -271,7 +230,6 @@ function createPendingSession(): SocialConnectSession {
   const session = SocialConnectSession.create({
     userId: "user-1",
     workspaceId: "workspace-1",
-    accountSlotId: "slot-1",
     platform: SocialPlatformEnum.TIKTOK,
     zernioProfileId: "profile-1",
     mode: ConnectModeEnum.STANDARD,
@@ -282,28 +240,15 @@ function createPendingSession(): SocialConnectSession {
   return session;
 }
 
-function createSlot(): IAccountSlot {
-  return {
-    id: "slot-1",
-    userId: "user-1",
-    socialConnectedAccountId: null,
-    status: AccountSlotStatusEnum.ACTIVE,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  };
-}
-
 function createUseCase(input: {
   publicationRepository: InMemoryPublicationRepository;
   socialConnectedAccountRepository: InMemorySocialConnectedAccountRepository;
   socialConnectSessionRepository: InMemorySocialConnectSessionRepository;
-  accountSlotRepository: InMemoryAccountSlotRepository;
 }) {
   return new HandleZernioWebhookUseCase(
     new StubWebhookEventRepository(),
     input.socialConnectedAccountRepository,
     input.socialConnectSessionRepository,
-    input.accountSlotRepository,
     input.publicationRepository,
     new StubZernioAccountService(),
     noopLogger,
@@ -318,7 +263,6 @@ describe("HandleZernioWebhookUseCase post events", () => {
       publicationRepository: repository,
       socialConnectedAccountRepository: new InMemorySocialConnectedAccountRepository(),
       socialConnectSessionRepository: new InMemorySocialConnectSessionRepository(null),
-      accountSlotRepository: new InMemoryAccountSlotRepository(createSlot()),
     });
 
     await useCase.execute({
@@ -367,7 +311,6 @@ describe("HandleZernioWebhookUseCase post events", () => {
       publicationRepository: repository,
       socialConnectedAccountRepository: new InMemorySocialConnectedAccountRepository(),
       socialConnectSessionRepository: new InMemorySocialConnectSessionRepository(null),
-      accountSlotRepository: new InMemoryAccountSlotRepository(createSlot()),
     });
 
     await useCase.execute({
@@ -412,7 +355,6 @@ describe("HandleZernioWebhookUseCase post events", () => {
       publicationRepository: repository,
       socialConnectedAccountRepository: new InMemorySocialConnectedAccountRepository(),
       socialConnectSessionRepository: new InMemorySocialConnectSessionRepository(null),
-      accountSlotRepository: new InMemoryAccountSlotRepository(createSlot()),
     });
 
     await useCase.execute({
@@ -445,12 +387,10 @@ describe("HandleZernioWebhookUseCase account.connected", () => {
   test("creates social account from pending connect session", async () => {
     const session = createPendingSession();
     const socialRepository = new InMemorySocialConnectedAccountRepository();
-    const slotRepository = new InMemoryAccountSlotRepository(createSlot());
     const useCase = createUseCase({
       publicationRepository: new InMemoryPublicationRepository(null),
       socialConnectedAccountRepository: socialRepository,
       socialConnectSessionRepository: new InMemorySocialConnectSessionRepository(session),
-      accountSlotRepository: slotRepository,
     });
 
     await useCase.execute({
@@ -473,6 +413,6 @@ describe("HandleZernioWebhookUseCase account.connected", () => {
     expect(saved?.username).toBe("creator.tiktok");
     expect(saved?.status).toBe(SocialAccountStatusEnum.CONNECTED);
     expect(session.isCompleted()).toBe(true);
-    expect(slotRepository.assignedAccountId).toBe("social-created-1");
+    expect(session.socialConnectedAccountId).toBe("social-created-1");
   });
 });

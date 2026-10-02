@@ -15,7 +15,6 @@ export class SocialConnectedAccountMapper {
       id: row.id,
       userId: row.userId,
       workspaceId: row.workspaceId,
-      accountSlotId: null,
       platform: SocialConnectedAccountMapper.toPlatform(row.platform),
       zernioAccountId: row.zernioAccountId,
       zernioProfileId: row.zernioProfileId,

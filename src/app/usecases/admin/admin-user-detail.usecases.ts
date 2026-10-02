@@ -3,7 +3,6 @@ import type {
   IAdminUserOpenInvoiceDto,
   IAdminUserSubscriptionSummaryDto,
 } from "@/app/usecases/admin/dto/admin-user-detail.dto";
-import { ProvisionAccountSlotsUseCase } from "@/app/usecases/subscription/provision-account-slots.usecase";
 import { ProcessSubscriptionInvoicePaymentUseCase } from "@/app/usecases/subscription/subscription.usecases";
 import { mapUserToDto } from "@/app/usecases/user/map-user-to-dto.util";
 import { AppError } from "@/domain/errors/app.error";
@@ -94,7 +93,6 @@ export class GrantAdminTrialSubscriptionUseCase {
     private readonly userRepository: IUserRepository,
     private readonly subscriptionPlanRepository: ISubscriptionPlanRepository,
     private readonly subscriptionRepository: ISubscriptionRepository,
-    private readonly provisionAccountSlotsUseCase: ProvisionAccountSlotsUseCase,
   ) {}
 
   async execute(input: {
@@ -119,11 +117,6 @@ export class GrantAdminTrialSubscriptionUseCase {
       planId: input.planId,
       grantedByUserId: input.grantedByUserId,
     });
-
-    await this.provisionAccountSlotsUseCase.execute(
-      input.userId,
-      subscription.plan.connectionsLimit,
-    );
 
     return mapSubscriptionSummary(subscription);
   }

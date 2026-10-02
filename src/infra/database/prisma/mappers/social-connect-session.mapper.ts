@@ -12,7 +12,8 @@ export class SocialConnectSessionMapper {
       id: row.id,
       userId: row.userId,
       workspaceId: row.workspaceId,
-      accountSlotId: row.accountSlotId,
+      reconnectSocialAccountId: row.reconnectSocialAccountId,
+      socialConnectedAccountId: row.socialConnectedAccountId,
       platform: SocialConnectSessionMapper.toPlatform(row.platform),
       zernioProfileId: row.zernioProfileId,
       mode: SocialConnectSessionMapper.toMode(row.mode),
@@ -32,7 +33,8 @@ export class SocialConnectSessionMapper {
     return {
       userId: data.userId,
       workspaceId: data.workspaceId,
-      accountSlotId: data.accountSlotId,
+      reconnectSocialAccountId: data.reconnectSocialAccountId,
+      socialConnectedAccountId: data.socialConnectedAccountId,
       platform: data.platform,
       zernioProfileId: data.zernioProfileId,
       mode: data.mode,
@@ -53,6 +55,7 @@ export class SocialConnectSessionMapper {
       connectToken: data.connectToken,
       step: data.step,
       completedAt: data.completedAt,
+      socialConnectedAccountId: data.socialConnectedAccountId,
     };
   }
 

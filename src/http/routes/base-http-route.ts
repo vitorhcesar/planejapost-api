@@ -1,5 +1,8 @@
 import type { IAppContainer } from "@/composition/app.container";
+import { AppError } from "@/domain/errors/app.error";
+import { mapPrismaErrorToAppError } from "@/domain/errors/map-prisma-error.util";
 import type { Elysia } from "elysia";
+import { ZodError } from "zod";
 
 export interface IHttpSuccessResponse<TData> {
   status: number;
@@ -48,6 +51,51 @@ export abstract class BaseHttpRoute {
       code,
       error,
     };
+  }
+
+  protected handleError(error: unknown): IHttpErrorResponse {
+    if (error instanceof AppError) {
+      return this.errorResponse(error.message, error.statusCode, error.code, error.data);
+    }
+
+    const prismaError = mapPrismaErrorToAppError(error);
+    if (prismaError) {
+      return this.errorResponse(
+        prismaError.message,
+        prismaError.statusCode,
+        prismaError.code,
+        prismaError.data,
+      );
+    }
+
+    if (error instanceof ZodError) {
+      return this.errorResponse("Dados inválidos", 422, "validation", {
+        issues: error.flatten(),
+      });
+    }
+
+    if (error instanceof Error) {
+      return this.errorResponse(error.message, 400);
+    }
+
+    return this.errorResponse("Erro interno do servidor", 500, "internal_server_error");
+  }
+
+  protected getStatusFromError(error: unknown): number {
+    if (error instanceof AppError) {
+      return error.statusCode;
+    }
+
+    const prismaError = mapPrismaErrorToAppError(error);
+    if (prismaError) {
+      return prismaError.statusCode;
+    }
+
+    if (error instanceof ZodError) {
+      return 422;
+    }
+
+    return 500;
   }
 }
 
