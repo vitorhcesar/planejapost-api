@@ -17,6 +17,7 @@ export class PublicationRoutes extends BaseHttpRoute {
       createAndPublish,
       getThumbnail,
       get,
+      getAnalytics,
       reschedule,
       cancel,
       getQueue,
@@ -121,6 +122,23 @@ export class PublicationRoutes extends BaseHttpRoute {
       const publication = await get.execute(authUserId!, publicationId);
 
       return this.successResponse("OK", publication, 200);
+    });
+
+    route.get("/publications/:publicationId/analytics", async (context) => {
+      const { authUserId } = getAuthContext(context);
+      const publicationId = context.params.publicationId;
+
+      if (!publicationId) {
+        throw new AppError(
+          "Publicação inválida",
+          400,
+          "invalid_publication_id",
+        );
+      }
+
+      const analytics = await getAnalytics.execute(authUserId!, publicationId);
+
+      return this.successResponse("OK", analytics, 200);
     });
 
     route.patch("/publications/:publicationId/schedule", async (context) => {

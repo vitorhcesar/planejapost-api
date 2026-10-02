@@ -3,7 +3,9 @@ import type { IBillingSettingsRepository } from "@/domain/repositories/billing-s
 import type { IEmailVerificationOtpRepository } from "@/domain/repositories/email-verification-otp.repository";
 import type { IOasyfyPixTestRepository } from "@/domain/repositories/oasyfy-pix-test.repository";
 import type { IOasyfyWebhookRepository } from "@/domain/repositories/oasyfy-webhook.repository";
+import type { IPublicationAnalyticsCacheRepository } from "@/domain/repositories/publication-analytics-cache.repository";
 import type { IPublicationRepository } from "@/domain/repositories/publication.repository";
+import type { IZernioAnalyticsSyncStateRepository } from "@/domain/repositories/zernio-analytics-sync-state.repository";
 import type { ISocialConnectedAccountRepository } from "@/domain/repositories/social-connected-account.repository";
 import type { ISocialConnectSessionRepository } from "@/domain/repositories/social-connect-session.repository";
 import type { IStripeWebhookRepository } from "@/domain/repositories/stripe-webhook.repository";
@@ -19,7 +21,9 @@ import { PrismaBillingSettingsRepository } from "@/infra/database/prisma/reposit
 import { PrismaEmailVerificationOtpRepository } from "@/infra/database/prisma/repositories/prisma-email-verification-otp.repository";
 import { PrismaOasyfyPixTestRepository } from "@/infra/database/prisma/repositories/prisma-oasyfy-pix-test.repository";
 import { PrismaOasyfyWebhookRepository } from "@/infra/database/prisma/repositories/prisma-oasyfy-webhook.repository";
+import { PrismaPublicationAnalyticsCacheRepository } from "@/infra/database/prisma/repositories/prisma-publication-analytics-cache.repository";
 import { PrismaPublicationRepository } from "@/infra/database/prisma/repositories/prisma-publication.repository";
+import { PrismaZernioAnalyticsSyncStateRepository } from "@/infra/database/prisma/repositories/prisma-zernio-analytics-sync-state.repository";
 import { PrismaSocialConnectedAccountRepository } from "@/infra/database/prisma/repositories/prisma-social-connected-account.repository";
 import { PrismaSocialConnectSessionRepository } from "@/infra/database/prisma/repositories/prisma-social-connect-session.repository";
 import { PrismaStripeWebhookRepository } from "@/infra/database/prisma/repositories/prisma-stripe-webhook.repository";
@@ -36,9 +40,11 @@ export interface IRepositories {
   user: IUserRepository;
   userZernioQueue: IUserZernioQueueRepository;
   publication: IPublicationRepository;
+  publicationAnalyticsCache: IPublicationAnalyticsCacheRepository;
   socialConnectedAccount: ISocialConnectedAccountRepository;
   socialConnectSession: ISocialConnectSessionRepository;
   zernioWebhookEvent: IZernioWebhookEventRepository;
+  zernioAnalyticsSyncState: IZernioAnalyticsSyncStateRepository;
   emailVerificationOtp: IEmailVerificationOtpRepository;
   workspace: IWorkspaceRepository;
   billingSettings: IBillingSettingsRepository;
@@ -56,9 +62,11 @@ export function createRepositories(): IRepositories {
     user: new PrismaUserRepository(),
     userZernioQueue: new PrismaUserZernioQueueRepository(),
     publication: new PrismaPublicationRepository(),
+    publicationAnalyticsCache: new PrismaPublicationAnalyticsCacheRepository(),
     socialConnectedAccount: new PrismaSocialConnectedAccountRepository(),
     socialConnectSession: new PrismaSocialConnectSessionRepository(),
     zernioWebhookEvent: new PrismaZernioWebhookEventRepository(),
+    zernioAnalyticsSyncState: new PrismaZernioAnalyticsSyncStateRepository(),
     emailVerificationOtp: new PrismaEmailVerificationOtpRepository(),
     workspace: new PrismaWorkspaceRepository(),
     billingSettings: new PrismaBillingSettingsRepository(),

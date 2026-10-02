@@ -6,6 +6,7 @@ import {
   PublishModeEnum,
 } from "@/domain/enums/publication.enum";
 import { isAbsoluteMediaUrl } from "@/domain/utils/validate-media-url.util";
+import { InstagramContentTypeEnum } from "@/domain/types/publication-platform-settings.types";
 
 const mediaUrlSchema = z
   .string()
@@ -13,6 +14,18 @@ const mediaUrlSchema = z
   .refine(isAbsoluteMediaUrl, {
     message: "mediaUrl deve ser uma URL absoluta (http:// ou https://)",
   });
+
+const instagramPlatformSettingsSchema = z.object({
+  contentType: z.nativeEnum(InstagramContentTypeEnum),
+  isAiGenerated: z.boolean(),
+  collaborators: z.array(z.string().min(1)).max(3),
+  firstComment: z.string().max(2200),
+  customCaption: z.string().max(2200),
+});
+
+const platformSettingsSchema = z.object({
+  instagram: instagramPlatformSettingsSchema.optional(),
+});
 
 export const createPublicationBodySchema = z
   .object({
@@ -26,6 +39,7 @@ export const createPublicationBodySchema = z
     scheduledFor: z.string().min(1).optional(),
     timezone: z.string().min(1).optional(),
     publishMode: z.nativeEnum(PublishModeEnum).optional(),
+    platformSettings: platformSettingsSchema.optional(),
   })
   .superRefine((data, context) => {
     const hasMediaUrl = Boolean(data.mediaUrl);

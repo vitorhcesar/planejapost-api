@@ -22,6 +22,7 @@ import { EnsureZernioProfileUseCase } from "@/app/usecases/zernio/ensure-zernio-
 import type { IZernioPostService } from "@/domain/zernio/zernio-post.service";
 import { assertCaptionWithinPlatformLimits } from "@/domain/utils/validate-publication-caption.util";
 import { assertValidMediaUrls } from "@/domain/utils/validate-media-url.util";
+import type { IPlatformSettings } from "@/domain/types/publication-platform-settings.types";
 import { buildZernioPostPayload } from "@/infra/zernio/zernio-post-payload.builder";
 import {
   getExistingPostIdFromError,
@@ -45,6 +46,7 @@ export interface ICreatePublicationInput {
   scheduledFor?: string;
   timezone?: string;
   publishMode?: PublishModeEnum;
+  platformSettings?: IPlatformSettings;
 }
 
 export class CreateAndPublishPublicationUseCase {
@@ -150,6 +152,7 @@ export class CreateAndPublishPublicationUseCase {
         timezone: scheduleInput?.timezone,
         queuedFromProfile: queueInput?.profileId,
         queueId: queueInput?.queueId,
+        platformSettings: input.platformSettings,
       });
       const zernioPost = await this.zernioPostService.createPost(payload);
 

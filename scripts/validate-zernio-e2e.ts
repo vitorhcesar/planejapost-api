@@ -7,18 +7,12 @@
 
 import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
+import {
+  mergeZernioWebhookEvents,
+  ZERNIO_WEBHOOK_EVENTS,
+} from "../src/domain/zernio/zernio-webhook.constants";
 
 const ENV_PATH = resolve(import.meta.dir, "../.env");
-
-const WEBHOOK_EVENTS = [
-  "account.connected",
-  "account.disconnected",
-  "post.platform.published",
-  "post.platform.failed",
-  "post.published",
-  "post.partial",
-  "post.failed",
-] as const;
 
 function loadEnvFile(): Record<string, string> {
   if (!existsSync(ENV_PATH)) {
@@ -150,6 +144,7 @@ if (zernioApiKey && zernioWebhookSecret && publicHealth === 200) {
   if (hook?._id) {
     statusLine(true, "Webhook Zernio registrado", webhookUrl);
 
+    const mergedEvents = mergeZernioWebhookEvents(hook.events);
     const syncResponse = await fetch("https://zernio.com/api/v1/webhooks/settings", {
       method: "PUT",
       headers: {
@@ -160,13 +155,17 @@ if (zernioApiKey && zernioWebhookSecret && publicHealth === 200) {
         webhookId: hook._id,
         secret: zernioWebhookSecret,
         url: webhookUrl,
-        events: [...WEBHOOK_EVENTS],
+        events: mergedEvents,
         isActive: true,
       }),
     });
 
-    if (!syncResponse.ok) {
-      statusLine(false, "Webhook secret sincronizado", `HTTP ${syncResponse.status}`);
+    if (syncResponse.ok) {
+      statusLine(true, "Webhook sincronizado", `${mergedEvents.length} eventos`);
+    } else {
+      const syncErrorBody = await syncResponse.text();
+      statusLine(false, "Webhook sincronizado", `HTTP ${syncResponse.status}`);
+      console.log(`  ${syncErrorBody.slice(0, 400)}`);
     }
   } else {
     statusLine(false, "Webhook Zernio registrado", "não encontrado — criando...");
@@ -181,7 +180,7 @@ if (zernioApiKey && zernioWebhookSecret && publicHealth === 200) {
         name: "PlanejaPost Dev",
         url: webhookUrl,
         secret: zernioWebhookSecret,
-        events: [...WEBHOOK_EVENTS],
+        events: [...ZERNIO_WEBHOOK_EVENTS],
       }),
     });
 

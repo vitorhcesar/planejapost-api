@@ -179,6 +179,7 @@ model Publication {
   createdAt        DateTime            @default(now())
   updatedAt        DateTime            @updatedAt
   targets          PublicationTarget[]
+  analyticsCache   PublicationAnalyticsCache?
 
   @@index([userId])
   @@index([userId, workspaceId, createdAt])
@@ -186,6 +187,32 @@ model Publication {
   @@index([zernioPostId])
   @@index([scheduledFor])
   @@map("publication")
+}
+
+model PublicationAnalyticsCache {
+  publicationId String      @id
+  publication   Publication @relation(fields: [publicationId], references: [id], onDelete: Cascade)
+  zernioPostId  String
+  syncStatus    String
+  message       String?
+  publishedAt   DateTime?
+  aggregate     Json?
+  platforms     Json        @default("[]")
+  syncedAt      DateTime?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([zernioPostId])
+  @@index([syncedAt])
+  @@map("publication_analytics_cache")
+}
+
+model ZernioAnalyticsSyncState {
+  id         String   @id @default("default")
+  nextCursor String?
+  updatedAt  DateTime @updatedAt
+
+  @@map("zernio_analytics_sync_state")
 }
 
 model PublicationTarget {

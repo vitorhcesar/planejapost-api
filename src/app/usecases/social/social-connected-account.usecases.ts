@@ -22,6 +22,7 @@ import type { IWorkspaceRepository } from "@/domain/repositories/workspace.repos
 import { EnsureDefaultWorkspaceUseCase } from "@/app/usecases/workspace/workspace.usecases";
 import type { IZernioAccountService } from "@/domain/zernio/zernio-account.service";
 import type { IZernioConnectService } from "@/domain/zernio/zernio-connect.service";
+import { ZERNIO_CONNECT_SCOPES } from "@/domain/zernio/zernio-connect.constants";
 import { randomBytes } from "node:crypto";
 
 export class CreateSocialConnectSessionUseCase {
@@ -110,7 +111,7 @@ export class CreateSocialConnectSessionUseCase {
       platform: input.platform,
       profileId: zernioProfileId,
       redirectUrl,
-      scopes: "posting",
+      scopes: ZERNIO_CONNECT_SCOPES,
       headless: mode === ConnectModeEnum.HEADLESS,
       loginMethod: input.loginMethod,
     });

@@ -15,8 +15,11 @@ import { SocialAccountStatusEnum } from "@/domain/enums/social-account.enum";
 import type { IPublicationRepository } from "@/domain/repositories/publication.repository";
 import type { ISocialConnectSessionRepository } from "@/domain/repositories/social-connect-session.repository";
 import type { ISocialConnectedAccountRepository } from "@/domain/repositories/social-connected-account.repository";
+import type { IPublicationAnalyticsCacheRepository } from "@/domain/repositories/publication-analytics-cache.repository";
+import type { IZernioAnalyticsSyncStateRepository } from "@/domain/repositories/zernio-analytics-sync-state.repository";
 import type { IZernioWebhookEventRepository } from "@/domain/repositories/zernio-webhook-event.repository";
 import type { IZernioAccountService } from "@/domain/zernio/zernio-account.service";
+import type { IZernioAnalyticsService } from "@/domain/zernio/zernio-analytics.service";
 import { NoopLogger } from "@/infra/logging/noop-logger.service";
 
 class InMemoryPublicationRepository implements IPublicationRepository {
@@ -28,6 +31,18 @@ class InMemoryPublicationRepository implements IPublicationRepository {
     }
 
     return null;
+  }
+
+  async findAnalyticsEligibleByZernioAccountId(zernioAccountId: string) {
+    if (
+      this.publication?.targets.some(
+        (target) => target.zernioAccountId === zernioAccountId,
+      )
+    ) {
+      return [this.publication];
+    }
+
+    return [];
   }
 
   async findById(id: string) {
@@ -53,6 +68,72 @@ class InMemoryPublicationRepository implements IPublicationRepository {
 
   async countByType() {
     return this.publication ? 1 : 0;
+  }
+}
+
+class StubPublicationAnalyticsCacheRepository
+  implements IPublicationAnalyticsCacheRepository
+{
+  async findByPublicationId() {
+    return null;
+  }
+
+  async upsert(input: {
+    publicationId: string;
+    zernioPostId: string;
+    analytics: {
+      available: boolean;
+      syncStatus: string;
+      message: string | null;
+      publishedAt: string | null;
+      aggregate: unknown;
+      platforms: unknown[];
+    };
+    syncedAt?: Date | null;
+  }) {
+    return {
+      publicationId: input.publicationId,
+      zernioPostId: input.zernioPostId,
+      analytics: {
+        ...input.analytics,
+        available: true,
+        syncStatus: input.analytics.syncStatus as "synced",
+        platforms: [],
+      },
+      syncedAt: input.syncedAt ?? new Date(),
+      updatedAt: new Date(),
+    };
+  }
+}
+
+class StubZernioAnalyticsSyncStateRepository
+  implements IZernioAnalyticsSyncStateRepository
+{
+  private nextCursor: string | null = null;
+
+  async getState() {
+    return {
+      nextCursor: this.nextCursor,
+      updatedAt: new Date(),
+    };
+  }
+
+  async saveNextCursor(nextCursor: string) {
+    this.nextCursor = nextCursor;
+  }
+}
+
+class StubZernioAnalyticsService implements IZernioAnalyticsService {
+  async getPostAnalytics() {
+    return null;
+  }
+
+  async getAnalyticsDelta() {
+    return {
+      data: [],
+      nextCursor: "cursor-1",
+      hasMore: false,
+    };
   }
 }
 
@@ -250,7 +331,10 @@ function createUseCase(input: {
     input.socialConnectedAccountRepository,
     input.socialConnectSessionRepository,
     input.publicationRepository,
+    new StubPublicationAnalyticsCacheRepository(),
+    new StubZernioAnalyticsSyncStateRepository(),
     new StubZernioAccountService(),
+    new StubZernioAnalyticsService(),
     noopLogger,
   );
 }

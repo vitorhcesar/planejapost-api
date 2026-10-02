@@ -41,6 +41,34 @@ export class PrismaPublicationRepository
     return row ? PublicationMapper.toDomain(row) : null;
   }
 
+  async findAnalyticsEligibleByZernioAccountId(
+    zernioAccountId: string,
+    limit = 25,
+  ): Promise<Publication[]> {
+    const rows = await this.getPrismaClient().publication.findMany({
+      where: {
+        zernioPostId: { not: null },
+        status: {
+          in: [
+            PublicationStatusEnum.COMPLETED,
+            PublicationStatusEnum.PARTIAL_FAILURE,
+            PublicationStatusEnum.UNVERIFIED,
+          ],
+        },
+        targets: {
+          some: {
+            zernioAccountId,
+          },
+        },
+      },
+      include: { targets: true },
+      orderBy: { updatedAt: "desc" },
+      take: limit,
+    });
+
+    return rows.map(PublicationMapper.toDomain);
+  }
+
   async findAllByUserId(userId: string): Promise<Publication[]> {
     return this.findAllByUserIdWithFilters(userId, {});
   }

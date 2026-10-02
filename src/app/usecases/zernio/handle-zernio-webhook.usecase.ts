@@ -5,9 +5,16 @@ import { isSocialPlatform } from "@/domain/enums/social-platform.enum";
 import type { IPublicationRepository } from "@/domain/repositories/publication.repository";
 import type { ISocialConnectSessionRepository } from "@/domain/repositories/social-connect-session.repository";
 import type { ISocialConnectedAccountRepository } from "@/domain/repositories/social-connected-account.repository";
+import type { IPublicationAnalyticsCacheRepository } from "@/domain/repositories/publication-analytics-cache.repository";
+import type { IZernioAnalyticsSyncStateRepository } from "@/domain/repositories/zernio-analytics-sync-state.repository";
 import type { IZernioWebhookEventRepository } from "@/domain/repositories/zernio-webhook-event.repository";
 import type { ILogger } from "@/domain/services/logger.service";
 import type { IZernioAccountService } from "@/domain/zernio/zernio-account.service";
+import type { IZernioAnalyticsService } from "@/domain/zernio/zernio-analytics.service";
+import {
+  refreshPublicationAnalyticsForZernioAccount,
+  syncPublicationAnalyticsFromZernioDelta,
+} from "@/app/usecases/zernio/sync-publication-analytics-from-zernio-delta.util";
 import {
   alignPendingTargetsWithAggregateStatus,
   syncPublicationTargetsFromPlatformEntries,
@@ -35,7 +42,10 @@ export class HandleZernioWebhookUseCase {
     private readonly socialConnectedAccountRepository: ISocialConnectedAccountRepository,
     private readonly socialConnectSessionRepository: ISocialConnectSessionRepository,
     private readonly publicationRepository: IPublicationRepository,
+    private readonly publicationAnalyticsCacheRepository: IPublicationAnalyticsCacheRepository,
+    private readonly zernioAnalyticsSyncStateRepository: IZernioAnalyticsSyncStateRepository,
     private readonly zernioAccountService: IZernioAccountService,
+    private readonly zernioAnalyticsService: IZernioAnalyticsService,
     private readonly logger: ILogger,
   ) {}
 
@@ -96,7 +106,44 @@ export class HandleZernioWebhookUseCase {
       eventType === "post.publishing"
     ) {
       await this.handlePostEvent(eventType, payload);
+      return;
     }
+
+    if (eventType === "analytics.synced") {
+      await this.handleAnalyticsSynced(payload);
+    }
+  }
+
+  private async handleAnalyticsSynced(payload: Record<string, unknown>): Promise<void> {
+    const account = payload.account as Record<string, unknown> | undefined;
+    const sync = payload.sync as Record<string, unknown> | undefined;
+    const zernioAccountId = String(account?.accountId ?? "");
+    const postsUpdated = Number(sync?.postsUpdated ?? 0);
+
+    const deltaResult = await syncPublicationAnalyticsFromZernioDelta({
+      zernioAnalyticsService: this.zernioAnalyticsService,
+      zernioAnalyticsSyncStateRepository: this.zernioAnalyticsSyncStateRepository,
+      publicationRepository: this.publicationRepository,
+      publicationAnalyticsCacheRepository: this.publicationAnalyticsCacheRepository,
+    });
+
+    let updatedPublicationIds = deltaResult.updatedPublicationIds;
+
+    if (updatedPublicationIds.length === 0 && postsUpdated > 0 && zernioAccountId) {
+      updatedPublicationIds = await refreshPublicationAnalyticsForZernioAccount({
+        zernioAccountId,
+        zernioAnalyticsService: this.zernioAnalyticsService,
+        publicationRepository: this.publicationRepository,
+        publicationAnalyticsCacheRepository: this.publicationAnalyticsCacheRepository,
+      });
+    }
+
+    this.logger.info(ZERNIO_WEBHOOK_SCOPE, "Analytics sincronizados", {
+      zernioAccountId,
+      postsUpdated,
+      affectedPostIds: deltaResult.affectedPostIds.length,
+      updatedPublications: updatedPublicationIds.length,
+    });
   }
 
   private async handleAccountConnected(payload: Record<string, unknown>): Promise<void> {

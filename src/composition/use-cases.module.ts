@@ -46,6 +46,7 @@ import {
   GetPublicationQueueUseCase,
   UpsertPublicationQueueUseCase,
 } from "@/app/usecases/publication/publication-queue.usecase";
+import { GetPublicationAnalyticsUseCase } from "@/app/usecases/publication/get-publication-analytics.usecase";
 import {
   CompleteSocialConnectUseCase,
   CreateSocialConnectSessionUseCase,
@@ -112,6 +113,7 @@ export interface IUseCases {
     cancel: CancelPublicationUseCase;
     getQueue: GetPublicationQueueUseCase;
     upsertQueue: UpsertPublicationQueueUseCase;
+    getAnalytics: GetPublicationAnalyticsUseCase;
   };
   social: {
     createConnectSession: CreateSocialConnectSessionUseCase;
@@ -299,6 +301,11 @@ export function createUseCases(
         ensureZernioProfile,
         infrastructure.zernioClient,
       ),
+      getAnalytics: new GetPublicationAnalyticsUseCase(
+        repositories.publication,
+        repositories.publicationAnalyticsCache,
+        infrastructure.zernioClient,
+      ),
     },
     social: {
       createConnectSession: new CreateSocialConnectSessionUseCase(
@@ -352,6 +359,9 @@ export function createUseCases(
         repositories.socialConnectedAccount,
         repositories.socialConnectSession,
         repositories.publication,
+        repositories.publicationAnalyticsCache,
+        repositories.zernioAnalyticsSyncState,
+        infrastructure.zernioClient,
         infrastructure.zernioClient,
         infrastructure.logger,
       ),

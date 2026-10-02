@@ -3,6 +3,7 @@ import { EnvService } from "@/infra/config/env.service";
 import type { IZernioAccountService } from "@/domain/zernio/zernio-account.service";
 import type { IZernioConnectService } from "@/domain/zernio/zernio-connect.service";
 import type { IZernioMediaService } from "@/domain/zernio/zernio-media.service";
+import type { IZernioAnalyticsService } from "@/domain/zernio/zernio-analytics.service";
 import type { IZernioPostService } from "@/domain/zernio/zernio-post.service";
 import type { IZernioQueueService } from "@/domain/zernio/zernio-queue.service";
 import type { IZernioProfileService } from "@/domain/zernio/zernio-profile.service";
@@ -15,6 +16,11 @@ import type {
   IZernioConnectUrlInput,
   IZernioConnectUrlResult,
   IZernioPost,
+  IZernioAnalyticsDelta,
+  IZernioAnalyticsDeltaEntry,
+  IZernioPostAnalytics,
+  IZernioPostAnalyticsMetrics,
+  IZernioPlatformPostAnalytics,
   IZernioPresignUploadInput,
   IZernioPresignUploadResult,
   IZernioProfile,
@@ -32,6 +38,7 @@ import {
   getRetryAfterSeconds,
   mapZernioErrorToAppError,
 } from "@/domain/zernio/map-zernio-error.util";
+import { ZERNIO_CONNECT_SCOPES } from "@/domain/zernio/zernio-connect.constants";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import Zernio, { ZernioApiError } from "@zernio/node";
 
@@ -45,6 +52,118 @@ function asRecord(value: unknown): TZernioRecord {
 
 function asRecordArray(value: unknown): TZernioRecord[] {
   return Array.isArray(value) ? value.map(asRecord) : [];
+}
+
+function mapZernioAnalyticsDeltaEntry(
+  entry: TZernioRecord,
+): IZernioAnalyticsDeltaEntry | null {
+  const postId = String(entry.postId ?? "");
+
+  if (!postId) {
+    return null;
+  }
+
+  return {
+    postId,
+    accountId: String(entry.accountId ?? ""),
+    profileId: String(entry.profileId ?? ""),
+    platform: String(entry.platform ?? ""),
+    platformPostId: String(entry.platformPostId ?? ""),
+    publishedAt: String(entry.publishedAt ?? ""),
+    syncedAt: String(entry.syncedAt ?? ""),
+    isDeleted: Boolean(entry.isDeleted),
+  };
+}
+
+function mapZernioPostAnalyticsMetrics(
+  analytics: TZernioRecord | null | undefined,
+): IZernioPostAnalyticsMetrics | null {
+  if (!analytics || typeof analytics !== "object") {
+    return null;
+  }
+
+  const hasAnyMetric = [
+    "impressions",
+    "reach",
+    "likes",
+    "comments",
+    "shares",
+    "saves",
+    "clicks",
+    "views",
+    "engagementRate",
+  ].some((key) => typeof analytics[key] === "number");
+
+  if (!hasAnyMetric) {
+    return null;
+  }
+
+  return {
+    impressions: typeof analytics.impressions === "number" ? analytics.impressions : null,
+    reach: typeof analytics.reach === "number" ? analytics.reach : null,
+    likes: typeof analytics.likes === "number" ? analytics.likes : null,
+    comments: typeof analytics.comments === "number" ? analytics.comments : null,
+    shares: typeof analytics.shares === "number" ? analytics.shares : null,
+    saves: typeof analytics.saves === "number" ? analytics.saves : null,
+    clicks: typeof analytics.clicks === "number" ? analytics.clicks : null,
+    views: typeof analytics.views === "number" ? analytics.views : null,
+    engagementRate:
+      typeof analytics.engagementRate === "number" ? analytics.engagementRate : null,
+    lastUpdated:
+      typeof analytics.lastUpdated === "string" ? analytics.lastUpdated : null,
+  };
+}
+
+function mapZernioPlatformPostAnalytics(
+  entry: TZernioRecord,
+): IZernioPlatformPostAnalytics | null {
+  const platform = typeof entry.platform === "string" ? entry.platform : "";
+
+  if (!platform) {
+    return null;
+  }
+
+  const syncStatus = entry.syncStatus;
+
+  return {
+    platform,
+    accountUsername:
+      typeof entry.accountUsername === "string" ? entry.accountUsername : null,
+    syncStatus:
+      syncStatus === "synced" || syncStatus === "pending" || syncStatus === "unavailable"
+        ? syncStatus
+        : "pending",
+    errorMessage:
+      typeof entry.errorMessage === "string" ? entry.errorMessage : null,
+    platformPostUrl:
+      typeof entry.platformPostUrl === "string" ? entry.platformPostUrl : null,
+    analytics: mapZernioPostAnalyticsMetrics(asRecord(entry.analytics)),
+  };
+}
+
+function mapZernioPostAnalytics(
+  data: TZernioRecord,
+  fallbackPostId: string,
+): IZernioPostAnalytics {
+  const syncStatus = data.syncStatus;
+
+  return {
+    postId: String(data.postId ?? data.latePostId ?? fallbackPostId),
+    syncStatus:
+      syncStatus === "synced" ||
+      syncStatus === "pending" ||
+      syncStatus === "partial" ||
+      syncStatus === "unavailable"
+        ? syncStatus
+        : "pending",
+    message: typeof data.message === "string" ? data.message : null,
+    publishedAt:
+      typeof data.publishedAt === "string" ? data.publishedAt : null,
+    aggregate: mapZernioPostAnalyticsMetrics(asRecord(data.analytics)),
+    platforms: asRecordArray(data.platformAnalytics)
+      .map(mapZernioPlatformPostAnalytics)
+      .filter((entry): entry is IZernioPlatformPostAnalytics => entry !== null),
+  };
 }
 
 function mapZernioPost(post: TZernioRecord, fallbackPostId = ""): IZernioPost {
@@ -111,6 +230,7 @@ export interface IZernioClient
     IZernioConnectService,
     IZernioAccountService,
     IZernioPostService,
+    IZernioAnalyticsService,
     IZernioMediaService,
     IZernioQueueService {}
 
@@ -170,7 +290,7 @@ export class ZernioClient implements IZernioClient {
         query: {
           profileId: input.profileId,
           redirect_url: input.redirectUrl,
-          scopes: input.scopes ?? "posting",
+          scopes: input.scopes ?? ZERNIO_CONNECT_SCOPES,
           headless: input.headless ? "true" : undefined,
           loginMethod: input.loginMethod,
         },
@@ -337,6 +457,7 @@ export class ZernioClient implements IZernioClient {
           platforms: input.platforms.map((platform) => ({
             platform: platform.platform,
             accountId: platform.accountId,
+            customContent: platform.customContent,
             platformSpecificData: platform.platformSpecificData,
           })),
           tiktokSettings: input.tiktokSettings,
@@ -395,6 +516,55 @@ export class ZernioClient implements IZernioClient {
         path: { postId },
       }),
     );
+  }
+
+  async getAnalyticsDelta(input?: {
+    cursor?: string;
+    limit?: number;
+  }): Promise<IZernioAnalyticsDelta> {
+    const response = await this.withRateLimitRetry(() =>
+      this.sdk.analytics.getAnalyticsDelta({
+        query: {
+          cursor: input?.cursor,
+          limit: input?.limit,
+        },
+      }),
+    );
+
+    const data = asRecord(response.data);
+    const entries = asRecordArray(data.data);
+
+    return {
+      data: entries
+        .map(mapZernioAnalyticsDeltaEntry)
+        .filter((entry): entry is IZernioAnalyticsDeltaEntry => entry !== null),
+      nextCursor: String(data.nextCursor ?? ""),
+      hasMore: Boolean(data.hasMore),
+    };
+  }
+
+  async getPostAnalytics(postId: string): Promise<IZernioPostAnalytics | null> {
+    try {
+      const response = await this.withRateLimitRetry(() =>
+        this.sdk.analytics.getAnalytics({
+          query: { postId },
+        }),
+      );
+
+      const data = asRecord(response.data);
+
+      if (Object.keys(data).length === 0) {
+        return null;
+      }
+
+      return mapZernioPostAnalytics(data, postId);
+    } catch (error) {
+      if (error instanceof ZernioApiError && error.isNotFound()) {
+        return null;
+      }
+
+      throw mapZernioErrorToAppError(error);
+    }
   }
 
   async getQueueSchedule(input: {

@@ -63,6 +63,7 @@ export interface IZernioMediaItem {
 export interface IZernioPostPlatformInput {
   platform: TZernioPlatform;
   accountId: string;
+  customContent?: string;
   platformSpecificData?: Record<string, unknown>;
 }
 
@@ -101,6 +102,65 @@ export interface IZernioPost {
   scheduledFor: string | null;
   timezone: string | null;
   platforms: IZernioPostPlatformEntry[];
+}
+
+export type TZernioAnalyticsSyncStatus =
+  | "synced"
+  | "pending"
+  | "partial"
+  | "unavailable";
+
+export type TZernioPlatformAnalyticsSyncStatus =
+  | "synced"
+  | "pending"
+  | "unavailable";
+
+export interface IZernioPostAnalyticsMetrics {
+  impressions: number | null;
+  reach: number | null;
+  likes: number | null;
+  comments: number | null;
+  shares: number | null;
+  saves: number | null;
+  clicks: number | null;
+  views: number | null;
+  engagementRate: number | null;
+  lastUpdated: string | null;
+}
+
+export interface IZernioPlatformPostAnalytics {
+  platform: string;
+  accountUsername: string | null;
+  syncStatus: TZernioPlatformAnalyticsSyncStatus;
+  errorMessage: string | null;
+  platformPostUrl: string | null;
+  analytics: IZernioPostAnalyticsMetrics | null;
+}
+
+export interface IZernioPostAnalytics {
+  postId: string;
+  syncStatus: TZernioAnalyticsSyncStatus;
+  message: string | null;
+  publishedAt: string | null;
+  aggregate: IZernioPostAnalyticsMetrics | null;
+  platforms: IZernioPlatformPostAnalytics[];
+}
+
+export interface IZernioAnalyticsDeltaEntry {
+  postId: string;
+  accountId: string;
+  profileId: string;
+  platform: string;
+  platformPostId: string;
+  publishedAt: string;
+  syncedAt: string;
+  isDeleted: boolean;
+}
+
+export interface IZernioAnalyticsDelta {
+  data: IZernioAnalyticsDeltaEntry[];
+  nextCursor: string;
+  hasMore: boolean;
 }
 
 export interface IZernioSelectionOption {
